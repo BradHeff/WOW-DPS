@@ -1,0 +1,1217 @@
+local E, L = unpack(ElvUI)
+local _G = _G
+local S = E:GetModule('Skins')
+local CreateFrame = _G.CreateFrame
+local print = _G.print
+local unpack = _G.unpack
+local hooksecurefunc = _G.hooksecurefunc
+local IsAddOnLoaded = _G.C_AddOns and _G.C_AddOns.IsAddOnLoaded
+local LoadAddOn = _G.C_AddOns and _G.C_AddOns.LoadAddOn
+local GetPhysicalScreenSize = _G.GetPhysicalScreenSize
+local UIParentLoadAddOn = _G.UIParentLoadAddOn
+local GetCursorInfo = _G.GetCursorInfo
+local GetItemInfo = _G.C_Item and _G.C_Item.GetItemInfo or _G.GetItemInfo
+local string = _G.string
+local stringlen = string.len
+local stringupper = string.upper
+local stringutf8sub = string.utf8sub
+local stringutf8lower = string.utf8lower
+local stringgsub = string.gsub
+local tonumber = _G.tonumber
+local DELETE_ITEM_CONFIRM_STRING = _G.DELETE_ITEM_CONFIRM_STRING
+local InCombatLockdown = _G.InCombatLockdown
+local HideUIPanel = _G.HideUIPanel
+local GameMenuFrame = _G.GameMenuFrame
+local UIErrorsFrame = _G.UIErrorsFrame
+local RaidWarningFrame = _G.RaidWarningFrame
+local tostring = _G.tostring
+local PlaySound = _G.PlaySound
+local GetCVar = _G.C_CVar and _G.C_CVar.GetCVar or _G.GetCVar
+local SetCVar = _G.C_CVar and _G.C_CVar.SetCVar or _G.SetCVar
+local format = _G.format
+local IsInInstance = _G.IsInInstance
+local strsub = _G.strsub
+local ShowUIPanel = _G.ShowUIPanel
+local EditModeManagerFrame = _G.EditModeManagerFrame
+local SOUNDKIT = _G.SOUNDKIT
+local StaticPopupDialogs = _G.StaticPopupDialogs
+local ceil = _G.ceil
+local BuffFrame = _G.BuffFrame
+local GetSpellInfo = _G.C_Spell and _G.C_Spell.GetSpellInfo or _G.GetSpellInfo
+local GetShapeshiftFormInfo = _G.GetShapeshiftFormInfo
+local select = _G.select
+local type = _G.type
+local UnitClass = _G.UnitClass
+local GetActiveSpecGroup = _G.C_SpecializationInfo and _G.C_SpecializationInfo.GetActiveSpecGroup
+local GetCombatConfigIDForSpecGroup = _G.C_SpecializationInfo and _G.C_SpecializationInfo.GetCombatConfigIDForSpecGroup
+local GetConfigInfo = _G.C_Traits and _G.C_Traits.GetConfigInfo
+local GetGroupDisplayInfoByTreeID = _G.C_Traits and _G.C_Traits.GetGroupDisplayInfoByTreeID
+local GetGroupCurrencyInfo = _G.C_Traits and _G.C_Traits.GetGroupCurrencyInfo
+local ipairs = _G.ipairs
+local table = _G.table
+
+-- Eltreum UI print
+function ElvUI_EltreumUI:Print(msg)
+	--print('|cff82B4ffEltruism|r: '..msg)
+	if not msg then return end
+	print(ElvUI_EltreumUI.Name..': '..msg)
+end
+
+--check on PEW, should run on all scenarios needed (but not like garrisons)
+local outside = false
+local isPvP = false
+local instanceType = "none"
+local EltruismInstanceCheck = CreateFrame("Frame")
+local cached_isInInstance = false
+EltruismInstanceCheck:RegisterEvent("PLAYER_ENTERING_WORLD")
+EltruismInstanceCheck:RegisterEvent("ZONE_CHANGED")
+EltruismInstanceCheck:SetScript("OnEvent", function()
+	cached_isInInstance, instanceType = IsInInstance()
+	isPvP = (instanceType == "pvp") or (instanceType == "arena")
+	outside = (instanceType == "none")
+end)
+function ElvUI_EltreumUI:IsInInstance(needsisPvP,needsoutside,needsBoth,needsType,blizzard)
+	if needsType then
+		return instanceType
+	elseif needsBoth then
+		return isPvP,outside
+	elseif needsisPvP then
+		return isPvP
+	elseif needsoutside then
+		return outside
+	elseif blizzard then
+		return cached_isInInstance, instanceType
+	else
+		return cached_isInInstance
+	end
+end
+
+--fix macro
+local keydown = _G.C_CVar.GetCVarBool('ActionButtonUseKeyDown')
+function ElvUI_EltreumUI:MacroClick(button)
+	button:RegisterForClicks(keydown and 'AnyDown' or 'AnyUp')
+	if E.Modern or E.TBC then
+		button:SetAttribute('useOnKeyDown', keydown)
+	end
+end
+
+--register for ElvUI_CPU
+if IsAddOnLoaded("ElvUI_CPU") then
+	_G.ElvUI_CPU:RegisterPlugin(ElvUI_EltreumUI)
+	--ElvUIDev:RegisterPluginModule("ElvUI_EltreumUI", moduleName, module)
+end
+
+--Resolution check for font outline
+function ElvUI_EltreumUI:ResolutionOutline()
+	local width = GetPhysicalScreenSize()
+	if width == 3840 then
+		ElvUI_EltreumUI:Print(L["4K resolution detected, setting fonts to default mode."])
+		ElvUI_EltreumUI:SetupFontsOutlineDefault()
+	elseif width == 2560 then
+		ElvUI_EltreumUI:SetupFontsOutlineCustom("OUTLINE")
+		ElvUI_EltreumUI:Print(L["1440p resolution detected, setting fonts to outline mode."])
+	elseif width == 1920 then
+		ElvUI_EltreumUI:SetupFontsOutlineCustom("OUTLINE")
+		ElvUI_EltreumUI:Print(L["1080p resolution detected, setting fonts to outline mode."])
+	else
+		ElvUI_EltreumUI:SetupFontsOutlineCustom("OUTLINE")
+		ElvUI_EltreumUI:Print(L["Fonts were set to Outline due to your resolution."])
+	end
+end
+
+--turn and off blizzard combat text
+function ElvUI_EltreumUI:BlizzCombatText()
+	if not E.private.ElvUI_EltreumUI then
+		return
+	elseif not E.private.ElvUI_EltreumUI.install_version then
+		return
+	elseif not E.db.ElvUI_EltreumUI then
+		return
+	elseif not E.db.ElvUI_EltreumUI.otherstuff then
+		return
+	end
+	if not InCombatLockdown() then
+		if E.db.ElvUI_EltreumUI.otherstuff.blizzcombattext and not E.db.ElvUI_EltreumUI.otherstuff.blizzcombatmana then
+			SetCVar("enableFloatingCombatText", 0)
+			SetCVar("floatingCombatTextCombatHealing", 0)
+			SetCVar("floatingCombatTextCombatHealingAbsorbSelf", 0)
+			SetCVar("floatingCombatTextCombatHealingAbsorbTarget", 0)
+			SetCVar("floatingCombatTextCombatDamage", 0)
+			if E.Modern then
+				SetCVar("floatingCombatTextCombatDamage_v2", 0)
+			end
+		elseif E.db.ElvUI_EltreumUI.otherstuff.blizzcombatmana then
+			SetCVar("floatingCombatTextEnergyGains", 1)
+			SetCVar("enableFloatingCombatText", 1) ----this is damage taken without this the floating resource will not work
+		end
+	end
+end
+
+--restore blizzard combat text
+function ElvUI_EltreumUI:RestoreBlizzCombatText()
+	if not InCombatLockdown() then
+		SetCVar("enableFloatingCombatText", 1)
+		SetCVar("floatingCombatTextCombatHealing", 1)
+		SetCVar("floatingCombatTextCombatHealingAbsorbSelf", 1)
+		SetCVar("floatingCombatTextCombatHealingAbsorbTarget", 1)
+		SetCVar("floatingCombatTextCombatDamage", 1)
+		SetCVar("floatingCombatTextEnergyGains", 1)
+
+		if E.Modern then
+			SetCVar("floatingCombatTextCombatDamage_v2", 1)
+			SetCVar("floatingCombatTextCombatLogPeriodicSpells_v2", 1)
+			SetCVar("floatingCombatTextPetMeleeDamage_v2", 1)
+			SetCVar("floatingCombatTextPetSpellDamage_v2", 1)
+		end
+	end
+end
+
+--to get the correct name for the files
+--https://stackoverflow.com/questions/2421695/first-character-uppercase-lua
+function ElvUI_EltreumUI:firstToUpper(str)
+	return (str:gsub("^%l", stringupper))
+end
+
+--copy of elvui abbrev
+local strmatch = _G.strmatch
+local gsub = _G.gsub
+local gmatch = _G.gmatch
+function ElvUI_EltreumUI:Abbrev(name)
+	if not ElvUI_EltreumUI:IsThisASafeSecret(name,true) then
+		return name
+	else
+		local letters, lastWord = '', strmatch(name, '.+%s(.+)$')
+		if lastWord then
+			for word in gmatch(name, '.-%s') do
+				local firstLetter = stringutf8sub(gsub(word, '^[%s%p]*', ''), 1, 1)
+				if firstLetter ~= stringutf8lower(firstLetter) then
+					letters = format('%s%s. ', letters, firstLetter)
+				end
+			end
+			name = format('%s%s', letters, lastWord)
+		end
+		return name
+	end
+end
+
+local classcolorcast = {
+	["DEATHKNIGHT"]	= "FFC41E3A",
+	["DEMONHUNTER"]	= "FFA330C9",
+	["DRUID"] = "FFFF7C0A",
+	["HUNTER"] = "FFAAD372",
+	["MAGE"] = "FF3FC7EB",
+	["MONK"] = "FF00FF98",
+	["PALADIN"]	= "FFF48CBA",
+	["PRIEST"] = "FFFFFFFF",
+	["ROGUE"] = "FFFFF468",
+	["SHAMAN"] = "FF0070DD",
+	["WARLOCK"] = "FF8788EE",
+	["WARRIOR"] = "FFC69B6D",
+	["HOSTILE"] = "FFFF0000",
+	["UNFRIENDLY"] = "FFF26000",
+	["NEUTRAL"] = "FFE4E400",
+	["FRIENDLY"] = "FF33FF33",
+	["EVOKER"] = "FF33937F",
+}
+function ElvUI_EltreumUI:classcolorcast(unitclass)
+	if classcolorcast[unitclass] then
+		return classcolorcast[unitclass]
+	end
+end
+
+--level difference table based on blizzard's
+local eltruismdif = {
+	["-9"] = "|cFF808080",
+	["-8"] = "|cFF008000",
+	["-7"] = "|cFF008000",
+	["-6"] = "|cFF008000",
+	["-5"] = "|cFF008000",
+	["-4"] = "|cFF008000",
+	["-3"] = "|cFF008000",
+	["-2"] = "|cFFFFFF00",
+	["-1"] = "|cFFFFFF00",
+	["0"] = "|cFFFFFF00",
+	["1"] = "|cFFFFFF00",
+	["2"] = "|cFFFFFF00",
+	["3"] = "|cFFFFA500",
+	["4"] = "|cFFA50000",
+	["5"] = "|cFFFF0000",
+}
+function ElvUI_EltreumUI:eltruismdif(value)
+	if value and eltruismdif[value] then
+		return eltruismdif[value]
+	end
+end
+
+-- Ghost frame for Automatic Weakauras Positioning
+local EltreumWAAnchor
+local EltreumWAAnchor2
+local EltruismWAConsumablesAnchor
+if not E.Modern then
+	EltreumWAAnchor = CreateFrame("Frame", "EltruismWA", E.UIParent)
+	EltreumWAAnchor:SetPoint("CENTER", E.UIParent, "CENTER", 0, -380)
+	EltreumWAAnchor2 = CreateFrame("Frame", "EltruismWA2", E.UIParent)
+	EltreumWAAnchor2:SetPoint("BOTTOM", E.UIParent, "BOTTOM", 0, 320)
+	EltruismWAConsumablesAnchor = CreateFrame("Frame", "EltruismConsumablesWA", E.UIParent)
+	--postion the anchor right below the player unitframe
+	EltruismWAConsumablesAnchor:SetPoint("LEFT", _G["ElvUF_Player"], 0, -75)
+end
+--archeology mover
+local EltreumArcheologyAnchor = CreateFrame("Frame", "EltruismArcheology", E.UIParent)
+EltreumArcheologyAnchor:SetPoint("TOP", E.UIParent, "TOP", 0, -230)
+EltreumArcheologyAnchor:SetSize(200, 50)
+
+function ElvUI_EltreumUI:Anchors()
+	if E.private.unitframe.enable then
+
+		if not E.Modern then
+			--Anchor for general weakauras, like those that replace actionbars
+			EltreumWAAnchor:SetParent(_G["ElvUF_Player"])
+			EltreumWAAnchor:SetFrameStrata("BACKGROUND")
+			--position the anchor around the place where the action bars would be
+			EltreumWAAnchor:Size(250, 70)
+			--E:CreateMover(parent, name, textString, overlay, snapoffset, postdrag, types, shouldDisable, configString, ignoreSizeChanged)
+			E:CreateMover(EltreumWAAnchor, "MoverEltruismWA", "EltruismWA", nil, nil, nil, "ELTREUMUI", nil, 'ElvUI_EltreumUI,weakauras')
+			--do it again
+			EltreumWAAnchor2:SetParent(_G["ElvUF_Player"])
+			EltreumWAAnchor2:SetFrameStrata("BACKGROUND")
+			EltreumWAAnchor2:Size(250, 70)
+			E:CreateMover(EltreumWAAnchor2, "MoverEltruismWA2", "EltruismWA2", nil, nil, nil, "ELTREUMUI", nil, 'ElvUI_EltreumUI,weakauras')
+
+			--consumable weakauras, usually placed near player unitframe
+			EltruismWAConsumablesAnchor:SetParent(_G["ElvUF_Player"])
+			EltruismWAConsumablesAnchor:SetFrameStrata("BACKGROUND")
+			EltruismWAConsumablesAnchor:Size(270, 30)
+			E:CreateMover(EltruismWAConsumablesAnchor, "MoverEltruismWAConsumables", L["EltruismConsumablesWA"], nil, nil, nil, "ELTREUMUI", nil, 'ElvUI_EltreumUI,weakauras')
+		end
+
+		if E.private.general.raidUtility and E.private.unitframe.disabledBlizzardFrames.raid and E.private.unitframe.disabledBlizzardFrames.party then
+			if _G.RaidUtility_ShowButton then
+				E:CreateMover(_G.RaidUtility_ShowButton, "MoverRaidUtility", "Raid Utility", nil, nil, nil, "ALL,RAID,ELTREUMUI")
+			end
+		end
+	end
+	E:CreateMover(RaidWarningFrame, "MoverRaidWarningFrame", "Raid Warning Frame", nil, nil, nil, "ALL,SOLO,ELTREUMUI")
+
+	if _G["GhostFrame"] then
+		E:CreateMover(_G["GhostFrame"], "GhostFrameMover", "Ghost Frame", nil, nil, nil, "ALL,SOLO,ELTREUMUI")
+	end
+
+	--mover for UI errors frame
+	if E.db.ElvUI_EltreumUI.skins.blizzframes.hideerrorframe then
+		UIErrorsFrame:Clear()
+		UIErrorsFrame:Hide()
+	else
+		E:CreateMover(UIErrorsFrame, "MoverUIERRORS", "UI Error Frame", nil, nil, nil, "ALL,SOLO,ELTREUMUI")
+	end
+
+	--fix tutorial frames getting in the way
+	if _G.TutorialMainFrame_Frame then
+		_G.TutorialMainFrame_Frame:Kill()
+	end
+	if _G.TutorialSingleKey_Frame then
+		_G.TutorialSingleKey_Frame:Kill()
+	end
+	if _G.TutorialWalk_Frame then
+		_G.TutorialWalk_Frame:Kill()
+	end
+	if _G.TutorialFrame then
+		_G.TutorialFrame:Kill()
+	end
+	if _G.TutorialKeyboardMouseFrame_Frame then
+		_G.TutorialKeyboardMouseFrame_Frame:Kill()
+	end
+
+	if not E.private.auras.enable and not InCombatLockdown() then --in case elvui's buffs are disabled
+		if _G.BuffFrame then
+			E:CreateMover(BuffFrame, 'BlizzardBuffsMover', L["Blizzard Buff Frame"], nil, nil, nil, "ALL,SOLO,ELTREUMUI")
+		end
+	end
+
+	if E.db.ElvUI_EltreumUI.skins.blizzframes.hidealert then
+		_G.AlertFrame:UnregisterAllEvents()
+		E:DisableMover('AlertFrameMover')
+	end
+
+	if E.db.ElvUI_EltreumUI.skins.blizzframes.hidezone then
+		_G.ZoneTextFrame:UnregisterAllEvents()
+	end
+
+	if E.Modern then
+		if _G.RaidBossEmoteFrame then
+			E:CreateMover(_G.RaidBossEmoteFrame, "MoverRaidBossEmoteFrame", "Raid/Boss Emote Frame", nil, nil, nil, "ALL,SOLO,ELTREUMUI")
+		end
+		E:CreateMover(EltreumArcheologyAnchor, "MoverEltreumArcheologyAnchor", "EltruismArcheology", nil, nil, nil, "ALL,SOLO,ELTREUMUI")
+
+		--recreate the mirror timer mover
+		--E:CreateMover(_G.MirrorTimerContainer, 'MirrorTimerMover', L["MirrorTimer"], nil, nil, nil, 'ALL,SOLO')
+		E:CreateMover(_G.MirrorTimerContainer, 'MirrorTimerMover', L["MirrorTimer"], nil, nil, nil, "ALL,SOLO,ELTREUMUI", nil, 'ElvUI_EltreumUI,skins,general,blizzard')
+
+		_G.ArcheologyDigsiteProgressBar:BreakFromFrameManager()
+		_G.ArcheologyDigsiteProgressBar:ClearAllPoints()
+		_G.ArcheologyDigsiteProgressBar:SetPoint("CENTER", _G["EltruismArcheology"], "CENTER", 0, 0)
+
+		if E.db.ElvUI_EltreumUI.skins.blizzframes.hideboss then
+			_G.BossBanner:UnregisterAllEvents()
+			E:DisableMover('BossBannerMover')
+		end
+	end
+
+	if E.db.ElvUI_EltreumUI.skins.blizzframes.hideeventoaster then
+		if _G.EventToastManagerFrame then
+			_G.EventToastManagerFrame:UnregisterAllEvents()
+		end
+		if E.Modern and _G.ChallengeModeCompleteBanner then
+			_G.ChallengeModeCompleteBanner:UnregisterAllEvents()
+		end
+	end
+end
+
+--World text Scale
+function ElvUI_EltreumUI:WorldTextScale(value)
+	E.db.ElvUI_EltreumUI.otherstuff.worldtextscale = value
+	SetCVar('WorldTextScale', value)
+end
+
+--Set some CVars when entering world
+function ElvUI_EltreumUI:EnteringWorldCVars()
+	if E.Modern then
+		SetCVar("nameplatePlayerMaxDistance", 60)
+	end
+	SetCVar('nameplateOtherBottomInset', E.db.ElvUI_EltreumUI.cvars.nameplateOtherBottomInset)
+	SetCVar('nameplateOtherTopInset', E.db.ElvUI_EltreumUI.cvars.nameplateOtherTopInset)
+	SetCVar('cameraDistanceMaxZoomFactor', E.db.ElvUI_EltreumUI.cvars.cameraDistanceMaxZoomFactor)
+	SetCVar('nameplateTargetRadialPosition', E.db.ElvUI_EltreumUI.cvars.nameplateTargetRadialPosition)
+	SetCVar('nameplateOccludedAlphaMult', E.db.ElvUI_EltreumUI.cvars.nameplateOccludedAlphaMult)
+	SetCVar('DynamicRenderScaleMin', E.db.ElvUI_EltreumUI.cvars.dynamicrenderscalemin)
+	if E.Modern and E.db.ElvUI_EltreumUI.waypoints.waypointetasetting.enable then
+		SetCVar('showInGameNavigation', E.db.ElvUI_EltreumUI.cvars.showInGameNavigation)
+	elseif E.Classic or E.Mists or E.TBC or E.Wrath then
+		SetCVar('clampTargetNameplateToScreen', E.db.ElvUI_EltreumUI.cvars.clampTargetNameplateToScreen)
+	end
+end
+
+--Better EventTrace CLEU logging thanks to ;Meorawr.wtf.lua;
+function ElvUI_EltreumUI:DevTools()
+	if E.db.ElvUI_EltreumUI.dev then
+		--addon specific cpu/memory usage
+		--/run UpdateAddOnCPUUsage() UpdateAddOnMemoryUsage() print("cpu: "..((math.floor(GetAddOnCPUUsage("ElvUI_EltreumUI")))).."ms | memory: "..((math.floor(GetAddOnMemoryUsage("ElvUI_EltreumUI")/10))/100).."mb")
+
+		ElvUI_EltreumUI:Print("Development Tools Enabled, this uses more resources to detect events")
+
+		local function LogEvent(frame, event, ...)
+			if event == "COMBAT_LOG_EVENT_UNFILTERED" or event == "COMBAT_LOG_EVENT" then
+				frame:LogEvent_Original(event, _G.CombatLogGetCurrentEventInfo())
+			elseif event == "COMBAT_TEXT_UPDATE" then
+				frame:LogEvent_Original(event, (...), _G.GetCurrentCombatTextEventInfo())
+			else
+				frame:LogEvent_Original(event, ...)
+			end
+		end
+
+		local function OnEventTraceLoaded()
+			_G.EventTrace.LogEvent_Original = _G.EventTrace.LogEvent
+			_G.EventTrace.LogEvent = LogEvent
+		end
+
+		if not E.Modern and _G.EventTrace then
+			OnEventTraceLoaded()
+		else
+			local frame = CreateFrame("Frame")
+			frame:RegisterEvent("ADDON_LOADED")
+			frame:SetScript("OnEvent", function(_, _, arg)
+				if arg then
+					ElvUI_EltreumUI:Print("Addon Loaded: "..arg)
+				end
+				if arg == "Blizzard_EventTrace" then
+					if not E.Modern then
+						OnEventTraceLoaded()
+					end
+					if not IsAddOnLoaded("Blizzard_DebugTools") then
+						UIParentLoadAddOn("Blizzard_DebugTools")
+					end
+					_G.TableAttributeDisplay:SetWidth(800)
+					_G.TableAttributeDisplay.LinesScrollFrame:SetWidth(700)
+					_G.TableAttributeDisplay.TitleButton.Text:SetWidth(600)
+					frame:UnregisterAllEvents()
+				end
+			end)
+		end
+	end
+end
+
+--fix the toggles hiding when chat panels hide
+function ElvUI_EltreumUI:FixChatToggles()
+	if E.db["datatexts"]["panels"]["EltruismDataText"] and E.db["datatexts"]["panels"]["EltruismDataText"]["enable"] then
+		ElvUI_EltreumUI:BottomDatabarTexture()
+		if E.db.ElvUI_EltreumUI.chat.chattoggles then
+			_G.LeftChatToggleButton:SetAlpha(1)
+			_G.LeftChatToggleButton:Show()
+			_G.RightChatToggleButton:SetAlpha(1)
+			_G.RightChatToggleButton:Show()
+
+			--fix shadows when backdrop is shown
+			local DT = E:GetModule("DataTexts")
+			local eltruismdata = DT:FetchFrame("EltruismDataText")
+			local datatextname = tostring(eltruismdata:GetName())
+
+			--try again due to chat faders
+			E:Delay(1,function()
+				_G.LeftChatToggleButton:SetAlpha(1)
+				_G.LeftChatToggleButton:Show()
+				_G.RightChatToggleButton:SetAlpha(1)
+				_G.RightChatToggleButton:Show()
+			end)
+
+			if E.db.ElvUI_EltreumUI.skins.shadow.enable and _G[datatextname].template and _G[datatextname].template ~= 'NoBackdrop' and not E.db.ElvUI_EltreumUI.borders.universalborders then
+				if not _G[datatextname].shadow then
+					_G[datatextname]:CreateShadow(E.db.ElvUI_EltreumUI.skins.shadow.length)
+					ElvUI_EltreumUI:ShadowColor(_G[datatextname].shadow)
+				end
+
+				if not _G.LeftChatToggleButton.shadow then
+					_G.LeftChatToggleButton:CreateShadow(E.db.ElvUI_EltreumUI.skins.shadow.length)
+					ElvUI_EltreumUI:ShadowColor(_G.LeftChatToggleButton.shadow)
+					_G.LeftChatToggleButton.shadow.RightEdge:Hide()
+					_G.LeftChatToggleButton.shadow.RightEdge:Hide()
+					_G.LeftChatToggleButton.shadow.BottomRightCorner:Hide()
+					_G.LeftChatToggleButton.shadow.TopRightCorner:Hide()
+					if _G[datatextname].shadow then
+						_G[datatextname].shadow.RightEdge:Hide()
+						_G[datatextname].shadow.BottomRightCorner:Hide()
+						_G[datatextname].shadow.TopRightCorner:Hide()
+					end
+				end
+				if not _G.RightChatToggleButton.shadow then
+					_G.RightChatToggleButton:CreateShadow(E.db.ElvUI_EltreumUI.skins.shadow.length)
+					ElvUI_EltreumUI:ShadowColor(_G.RightChatToggleButton.shadow)
+					_G.RightChatToggleButton.shadow.LeftEdge:Hide()
+					_G.RightChatToggleButton.shadow.LeftEdge:Hide()
+					_G.RightChatToggleButton.shadow.BottomLeftCorner:Hide()
+					_G.RightChatToggleButton.shadow.TopLeftCorner:Hide()
+					if _G[datatextname].shadow then
+						_G[datatextname].shadow.LeftEdge:Hide()
+						_G[datatextname].shadow.BottomLeftCorner:Hide()
+						_G[datatextname].shadow.TopLeftCorner:Hide()
+					end
+				end
+			end
+
+			if E.db["datatexts"]["panels"]["EltruismDataText"]["backdrop"] then
+				_G.LeftChatPanel.backdrop:Show()
+				_G.RightChatPanel.backdrop:Show()
+			end
+		end
+
+		--fix if the value changed since install
+		local buttonwidth = _G.RightChatToggleButton:GetWidth()
+		--local width = GetPhysicalScreenSize()
+		local width = ceil(E.screenWidth)
+		if E.global["datatexts"]["customPanels"]["EltruismDataText"] then
+			if E.global["datatexts"]["customPanels"]["EltruismDataText"]["width"] >= width then
+				if E.db.ElvUI_EltreumUI.chat.chattoggles then
+					E.global["datatexts"]["customPanels"]["EltruismDataText"]["width"] = 2 + ceil(width - (buttonwidth * 2))
+				else
+					E.global["datatexts"]["customPanels"]["EltruismDataText"]["width"] = ceil(width)
+				end
+				E:UpdateDataTexts()
+			end
+		end
+	end
+end
+
+do
+	local throttle = 0
+	local function ClearThrottle()
+		throttle = 0
+	end
+
+	local function TypeDelete()
+		local _, _, itemLink = GetCursorInfo()
+		if not itemLink then return end
+
+		local lootName, _, _, _, _, _, _, _, _, lootTexture = GetItemInfo(itemLink)
+		if itemLink:match("|Hbattlepet:") then
+			lootName, _, _, _, _, _, _, _, _, lootTexture = GetItemInfo(82800)
+		end
+		if not (lootName and lootTexture) then return end
+
+		local text = _G.StaticPopup1Text:GetText()
+		if not text:match("|T") then
+			local deletetext = stringgsub(text, lootName, "|T"..lootTexture..":".. 14 .."|t"..itemLink.."")
+			_G.StaticPopup1Text:SetText(deletetext)
+		end
+
+		if _G.StaticPopup1.EditBox then
+			_G.StaticPopup1.EditBox:SetText(DELETE_ITEM_CONFIRM_STRING) --from line 2028
+		else
+			_G.StaticPopup1.editBox:SetText(DELETE_ITEM_CONFIRM_STRING) --from line 2028
+		end
+
+		if throttle == 0 then
+			throttle = 1
+			ElvUI_EltreumUI:Print("DELETE automatically typed")
+			E:Delay(1, ClearThrottle)
+		end
+	end
+
+	local isDeleteHooked = false
+	local petdetect = CreateFrame("FRAME")
+	function ElvUI_EltreumUI:DeleteItem()
+		if not isDeleteHooked and E.db.ElvUI_EltreumUI.otherstuff.delete and not (IsAddOnLoaded("ConsolePort") or IsAddOnLoaded("AnnoyingPopupRemover")) then
+			hooksecurefunc(StaticPopupDialogs.DELETE_GOOD_ITEM,"OnShow",TypeDelete) --Interface/FrameXML/StaticPopup.lua line 1965/2074
+			hooksecurefunc(StaticPopupDialogs.DELETE_GOOD_QUEST_ITEM,"OnShow",TypeDelete) --Interface/FrameXML/StaticPopup.lua line 2125
+
+			if E.Modern then
+				petdetect:RegisterEvent("DELETE_ITEM_CONFIRM")
+				petdetect:SetScript("OnEvent", function(_,_,deletetype)
+					if deletetype == "Pet Cage" then
+						TypeDelete()
+					end
+				end)
+			end
+
+			isDeleteHooked = true
+		end
+	end
+end
+
+--from elvui api, add button to game menu
+local offset = E.Modern and 36 or 19
+function ElvUI_EltreumUI:AddGameMenuButton()
+	if E.Modern then
+		GameMenuFrame.Eltruism:SetPoint("CENTER", _G.GameMenuFrame, "TOP", 0, -50)
+	else
+		GameMenuFrame.Eltruism:SetPoint("CENTER", _G.GameMenuFrame, "TOP", 0, -35)
+	end
+
+	local EditModeButton
+	if GameMenuFrame.buttonPool then
+		for button in GameMenuFrame.buttonPool:EnumerateActive() do
+			if button.layoutIndex then
+				local point, anchor, point2, x, y = button:GetPoint()
+				if button.layoutIndex == 1 then
+					button:ClearAllPoints()
+					button:SetPoint("TOP", GameMenuFrame.Eltruism, "BOTTOM", 0, 0)
+				else
+					button:SetPoint(point, anchor, point2, x, y - offset)
+				end
+			end
+			if button:GetText() == _G.HUD_EDIT_MODE_MENU then
+				EditModeButton = button
+			end
+		end
+	end
+
+	--local originalMenuHeight = GameMenuFrame:GetHeight() --this gives 538 so,
+	--in forever its 477, so minus my button at 36 = 451 (or 450), which has the elvui button
+	--turns out that despite having 11 buttons (so 9 defaults + elvui and eltruism buttons), it says 9, wether i count it myself or use the one they have
+	if E.Modern then
+		GameMenuFrame:Height((_G.GameMenuFrame.buttonCount*offset) + 218) --dynamically adjust based on button count
+	else
+		GameMenuFrame:Height(320 + offset) --yes i can set the actual math but this lets me recall its + menubutton height
+	end
+
+	--[[if E.Retail then
+		GameMenuFrame:Height(538 + offset) --yes i can set the actual math but this lets me recall its + menubutton height
+	elseif E.Forever then
+		GameMenuFrame:Height(456 + offset) --yes i can set the actual math but this lets me recall its + menubutton height
+	else
+		GameMenuFrame:Height(320 + offset) --yes i can set the actual math but this lets me recall its + menubutton height
+	end]]
+
+	--use elvui moveui instead of blizzard edit mode
+	--local EditModeButton = _G.GameMenuFrame.MenuButtons and _G.GameMenuFrame.MenuButtons[_G.HUD_EDIT_MODE_MENU]
+	if EditModeButton then --and not EditModeButton.EltruismHooked then --turns out in forever the script gets rewritten so i need to rewrite again
+		--EditModeButton.EltruismHooked = true
+		ElvUI_EltreumUI:MacroClick(EditModeButton)
+
+		EditModeButton:SetScript("OnClick", function(_, button)
+			if not InCombatLockdown() then
+				if button == "LeftButton" then
+					E:ToggleMoveMode()
+					HideUIPanel(_G["GameMenuFrame"])
+				else
+					PlaySound(SOUNDKIT.IG_MAINMENU_OPTION)
+					ShowUIPanel(EditModeManagerFrame)
+				end
+			end
+		end)
+		EditModeButton:HookScript("OnEnter", function()
+			_G["GameTooltip"]:SetOwner(EditModeButton, 'ANCHOR_RIGHT')
+			_G["GameTooltip"]:AddDoubleLine(L["Left Click:"], L["Toggle ElvUI Anchors"], 1, 1, 1)
+			_G["GameTooltip"]:AddDoubleLine(L["Right Click:"], L["Toggle Edit Mode"], 1, 1, 1)
+			_G["GameTooltip"]:Show()
+		end)
+		EditModeButton:HookScript("OnLeave", function()
+			_G["GameTooltip"]:Hide()
+		end)
+	end
+end
+
+local EltruismGameMenu = CreateFrame("Frame")
+EltruismGameMenu:RegisterEvent("PLAYER_ENTERING_WORLD")
+EltruismGameMenu:SetScript("OnEvent", function()
+	if E.db.ElvUI_EltreumUI.otherstuff.gamemenu then
+		local Menubutton
+		if not _G["EltruismGameMenu"] then
+			Menubutton = CreateFrame('Button', 'EltruismGameMenu', GameMenuFrame, 'MainMenuFrameButtonTemplate')
+			Menubutton:SetScript('OnClick', function()
+				if InCombatLockdown() then return end
+				E:ToggleOptions()
+				E.Libs['AceConfigDialog']:SelectGroup('ElvUI', 'ElvUI_EltreumUI') --if the old way it would always open on load
+				HideUIPanel(_G.GameMenuFrame)
+			end)
+			Menubutton:SetText("|TInterface\\Addons\\ElvUI_EltreumUI\\Media\\Textures\\tinylogo.tga:12:12:0:0:64:64|t".. ElvUI_EltreumUI.Name)
+			S:HandleButton(Menubutton,nil,nil,nil,true)
+
+			local xMenubutton = _G.GameMenuFrame:GetSize()
+			if E.Modern then
+				Menubutton:Size(xMenubutton-62, offset)
+			else
+				Menubutton:Size(xMenubutton-118, offset)
+			end
+			GameMenuFrame.Eltruism = Menubutton
+
+			if GameMenuFrame.Layout and not GameMenuFrame.EltruismHook then
+				ElvUI_EltreumUI:SecureHook(GameMenuFrame, 'Layout', 'AddGameMenuButton')
+				GameMenuFrame.EltruismHook = true
+			end
+		end
+	end
+end)
+
+--also add something special to edit mode
+function ElvUI_EltreumUI:EditModeMusic()
+	if E.db.ElvUI_EltreumUI.musicEnabled then
+		if E.ConfigurationMode then
+			_G.StopMusic()
+			_G.PlayMusic([[Interface\AddOns\ElvUI_EltreumUI\Media\Music\EditMode.mp3]])
+		else
+			_G.StopMusic()
+		end
+	end
+end
+ElvUI_EltreumUI:SecureHook(E, "ToggleMoveMode", "EditModeMusic")
+
+--make the video options movable because its annoying when adjusting settings
+local VideoOptionsFrame = _G.VideoOptionsFrame --Classic/Cata
+if VideoOptionsFrame and not VideoOptionsFrame:HasScript("OnDragStart") then
+	VideoOptionsFrame:SetMovable(true)
+	VideoOptionsFrame:EnableMouse(true)
+	VideoOptionsFrame:RegisterForDrag("LeftButton")
+	VideoOptionsFrame:SetScript("OnDragStart", VideoOptionsFrame.StartMoving)
+	VideoOptionsFrame:SetScript("OnDragStop", VideoOptionsFrame.StopMovingOrSizing)
+	VideoOptionsFrame:SetClampedToScreen(true)
+end
+local SettingsPanel = _G.SettingsPanel --Dragonflight onwards
+if SettingsPanel then
+	if SettingsPanel:HasScript("OnDragStart") then
+		SettingsPanel:SetScript("OnDragStart", nil)
+		SettingsPanel:SetScript("OnDragStop", nil)
+		SettingsPanel:SetMovable(true)
+		SettingsPanel:EnableMouse(true)
+		SettingsPanel:RegisterForDrag("LeftButton")
+		SettingsPanel:SetScript("OnDragStart", SettingsPanel.StartMoving)
+		SettingsPanel:SetScript("OnDragStop", SettingsPanel.StopMovingOrSizing)
+		SettingsPanel:SetClampedToScreen(true)
+	else
+		SettingsPanel:SetMovable(true)
+		SettingsPanel:EnableMouse(true)
+		SettingsPanel:RegisterForDrag("LeftButton")
+		SettingsPanel:SetScript("OnDragStart", SettingsPanel.StartMoving)
+		SettingsPanel:SetScript("OnDragStop", SettingsPanel.StopMovingOrSizing)
+		SettingsPanel:SetClampedToScreen(true)
+	end
+end
+
+--click casting button toggle
+local clickbindopenbutton, bindexture,clickcastingmonitor
+function ElvUI_EltreumUI:ClickCastingShortcut()
+	if not E.db.ElvUI_EltreumUI.otherstuff.ClickCastingShortcut then return end
+	if not _G["EltruismClickCastingToggle"] then
+		clickbindopenbutton = CreateFrame("Button", "EltruismClickCastingToggle")
+		bindexture = clickbindopenbutton:CreateTexture("EltruismClickCastingToggleTexture")
+		clickbindopenbutton:SetWidth(32)
+		clickbindopenbutton:SetHeight(32)
+		S:HandleButton(clickbindopenbutton)
+		--bindexture:SetTexture(4238928)
+		bindexture:SetTexture("interface\\cursor\\crosshair\\cast")
+		bindexture:SetTexCoord(0.08,0.92,0.08,0.92)
+		bindexture:SetAllPoints(clickbindopenbutton)
+		ElvUI_EltreumUI:MacroClick(clickbindopenbutton)
+
+		clickbindopenbutton:SetScript("OnEnter", function()
+			_G["GameTooltip"]:SetOwner(clickbindopenbutton, 'ANCHOR_RIGHT')
+			_G["GameTooltip"]:AddLine(L["Toggle the Click Casting Menu"])
+			_G["GameTooltip"]:Show()
+		end)
+		clickbindopenbutton:SetScript("OnLeave", function()
+			_G["GameTooltip"]:Hide()
+		end)
+
+		clickcastingmonitor = CreateFrame("FRAME","EltruismClickCastingAddOnMonitor")
+		clickcastingmonitor:RegisterEvent("ADDON_LOADED") --add option to disable this
+		clickcastingmonitor:SetScript("OnEvent", function(_,_,addon)
+			if (addon == "Blizzard_PlayerSpells") or IsAddOnLoaded("Blizzard_PlayerSpells") then
+				if not InCombatLockdown() then
+					SetCVar("enableMouseoverCast", 1) --this will prevent people not having mouse over cast if the blizzard addon is loaded
+				end
+				clickcastingmonitor:UnregisterEvent("ADDON_LOADED")
+				clickbindopenbutton:SetParent(_G["PlayerSpellsFrame"])
+				clickbindopenbutton:SetPoint("LEFT", _G["PlayerSpellsFrame"], "TOPRIGHT", 0, -80)
+				clickbindopenbutton:SetScript('OnClick', function()
+					if not IsAddOnLoaded("Blizzard_ClickBindingUI") then
+						LoadAddOn("Blizzard_ClickBindingUI")
+						if not _G["ClickBindingFrame"].shadow and not E.db.ElvUI_EltreumUI.borders.universalborders then
+							_G["ClickBindingFrame"]:CreateShadow(E.db.ElvUI_EltreumUI.skins.shadow.length)
+							ElvUI_EltreumUI:ShadowColor(_G["ClickBindingFrame"].shadow)
+						end
+					end
+					if not _G["ClickBindingFrame"]:IsShown() then
+						_G["ClickBindingFrame"]:Show()
+					elseif _G["ClickBindingFrame"]:IsShown() then
+						_G["ClickBindingFrame"]:Hide()
+						_G["PlayerSpellsFrame"]:Show()
+					end
+					_G["ClickBindingFrame"]:ClearAllPoints()
+					_G["ClickBindingFrame"]:SetParent(_G["PlayerSpellsFrame"])
+					_G["ClickBindingFrame"]:SetPoint("LEFT", _G["PlayerSpellsFrame"], "RIGHT", 50, -37)
+				end)
+			end
+		end)
+	end
+end
+
+--shadow and light compatibility check
+function ElvUI_EltreumUI:SLCheck(setting)
+	if not IsAddOnLoaded("ElvUI_SLE") or not setting then return false end
+	if setting == 'char' and E.db.sle.armory.character.enable then
+		return true
+	end
+	if setting == 'stats' and E.private.sle.armory.stats.enable then
+		return true
+	end
+	if setting == 'inspect' and E.db.sle.armory.inspect.enable then
+		return true
+	end
+	if setting == 'media' and E.private.sle.media.enable then
+		return true
+	end
+	if setting == 'quest' and E.private.sle.skins.objectiveTracker.enable then
+		return true
+	end
+
+	return false
+end
+
+--reforged armory compatibility check
+function ElvUI_EltreumUI:ReforgedCheck(setting)
+	if not IsAddOnLoaded("ReforgedArmory") or not setting or not (E.Mists or E.TBC or E.Wrath) then return false end
+	if setting == 'avgItemLevel' and E.db.cataarmory.character.avgItemLevel.enable then
+		return true
+	end
+
+	return false
+end
+
+function ElvUI_EltreumUI:SpellInfoShapeshift(spellID,ShapeshiftFormID)
+	if ShapeshiftFormID then
+		if GetShapeshiftFormInfo(1) then
+			spellID = select(4,GetShapeshiftFormInfo(ShapeshiftFormID))
+			if spellID then
+				local spellData = GetSpellInfo(spellID)
+				if spellData.name then
+					return spellData.name
+				else
+					return ""
+				end
+			else
+				return ""
+			end
+		else
+			return ""
+		end
+	elseif spellID then
+		local spellData = GetSpellInfo(spellID)
+		return spellData.name
+	end
+end
+
+local GetOverrideSpell = _G.C_Spell and _G.C_Spell.GetOverrideSpell
+local C_Spell_GetSpellInfo = _G.C_Spell and _G.C_Spell.GetSpellInfo
+function ElvUI_EltreumUI:EltruismSpellInfo(spellID)
+	if not spellID then return end
+	if GetOverrideSpell then
+		local override = GetOverrideSpell(spellID)
+		if override and override ~= 0 then
+			spellID = override
+		end
+	end
+	if C_Spell_GetSpellInfo then
+		local spellData = C_Spell_GetSpellInfo(spellID)
+		if spellData then
+			if type(spellData) == "table" then
+				return spellData.name, spellData.spellID, spellData.iconID
+			else
+				return "UNKNOWN", 187874, 136244--fallback value
+			end
+		end
+	end
+	if type(GetSpellInfo) == "function" then
+		local name, _, icon = GetSpellInfo(spellID)
+		if type(name) == "table" then
+			return name.name, name.spellID, name.iconID
+		elseif type(name) == "string" then
+			return name, spellID, icon
+		end
+	end
+	return
+end
+
+do
+	local shortenReplace = function(t) return t:utf8sub(1,1)..'. ' end
+	local shortenSuffix = function(t) return t:utf8sub(1,1)..'.' end
+	function ElvUI_EltreumUI:ShortenString(text, length, cut, firstname, isPlayer)
+		if not ElvUI_EltreumUI:IsThisASafeSecret(text,true) then
+			return text
+		else
+			if text and stringlen(text) > length then
+				if cut then
+					text = E:ShortenString(text,length)
+				else
+					if E.Forever and isPlayer then
+						local first, last = text:match('^(%a*)(.*)$')
+						if first and last then
+							text = first.." "..last:gsub('(%S+)', shortenSuffix)
+						else
+							text = text:gsub('(%S+) ', shortenReplace)
+						end
+					elseif firstname then
+						local first, last = text:match('^(%a*)(.*)$')
+						if first and last then
+							text = first.." "..last:gsub('(%S+)', shortenReplace)
+						else
+							text = text:gsub('(%S+) ', shortenReplace)
+						end
+					else
+						text = text:gsub('(%S+) ', shortenReplace)
+					end
+				end
+			end
+			return text
+		end
+	end
+end
+
+--addon compartment
+do
+	function ElvUI_EltreumUI:OnAddonCompartmentClick()
+		E:ToggleOptions("ElvUI_EltreumUI") --has msg arg which can be used
+		--E.Libs.AceConfigDialog:SelectGroup('ElvUI', 'ElvUI_EltreumUI')
+	end
+
+	_G.ElvUI_EltreumUI_OnAddonCompartmentClick = ElvUI_EltreumUI.OnAddonCompartmentClick
+end
+
+function ElvUI_EltreumUI:FontFlag(style)
+	if strsub(style, 0, 6) == 'SHADOW' then
+		style = strsub(style, 7)
+		if not style then style = '' end
+		return style
+	else
+		if style == 'NONE' then style = '' end
+		return style
+	end
+end
+
+--from oUF
+local GenerateTextColorCode = _G.C_ColorUtil and _G.C_ColorUtil.GenerateTextColorCode
+function ElvUI_EltreumUI:Hex(r, g, b)
+	if not r or type(r) == 'string' then
+		return '|cffFFFFFF'
+	elseif type(r) == 'table' then
+		if E.Modern then
+			return '|c' .. GenerateTextColorCode(r)
+		elseif(r.r) then
+			r, g, b = r.r, r.g, r.b
+		else
+			r, g, b = unpack(r)
+		end
+	end
+	return format('|cff%02x%02x%02x', r * 255, g * 255, b * 255)
+end
+
+--make mage and warlock use their original class colors
+function ElvUI_EltreumUI:OriginalClassColors()
+	--_G.RAID_CLASS_COLORS can cause issues inside instances if friendly nameplates are enabled, so check for that
+	local canTouchRaidClassColors
+	local mapID = _G.WorldMapFrame:GetMapID()
+	if not cached_isInInstance and not (mapID == 1662 or mapID == 582 or mapID == 590) then
+		canTouchRaidClassColors = true
+	else
+		if tonumber(GetCVar('nameplateShowFriends')) == 0 then
+			canTouchRaidClassColors = true
+		else
+			canTouchRaidClassColors = false
+		end
+	end
+
+	if E.db.ElvUI_EltreumUI.skins.oldclasscolors then
+		if canTouchRaidClassColors and not cached_isInInstance then
+			_G.RAID_CLASS_COLORS['MAGE']["r"] = 0.41
+			_G.RAID_CLASS_COLORS['MAGE']["g"] = 0.8
+			_G.RAID_CLASS_COLORS['MAGE']["b"] = 0.94
+			_G.RAID_CLASS_COLORS['MAGE']["colorStr"] = "ff69CCF0"
+		end
+		E.oUF.colors.class['MAGE'][1] = 0.41
+		E.oUF.colors.class['MAGE'][2] = 0.8
+		E.oUF.colors.class['MAGE'][3] = 0.94
+		E.oUF.colors.class['MAGE']["r"] = 0.41
+		E.oUF.colors.class['MAGE']["g"] = 0.8
+		E.oUF.colors.class['MAGE']["b"] = 0.94
+
+		if canTouchRaidClassColors and not cached_isInInstance then
+			_G.RAID_CLASS_COLORS['WARLOCK']["r"] = 0.58
+			_G.RAID_CLASS_COLORS['WARLOCK']["g"] = 0.51
+			_G.RAID_CLASS_COLORS['WARLOCK']["b"] = 0.79
+			_G.RAID_CLASS_COLORS['WARLOCK']["colorStr"] = "9482C9"
+		end
+		E.oUF.colors.class['WARLOCK'][1] = 0.58
+		E.oUF.colors.class['WARLOCK'][2] = 0.51
+		E.oUF.colors.class['WARLOCK'][3] = 0.79
+		E.oUF.colors.class['WARLOCK']["r"] = 0.58
+		E.oUF.colors.class['WARLOCK']["g"] = 0.51
+		E.oUF.colors.class['WARLOCK']["b"] = 0.79
+	end
+
+	--make shamans blue again in classic
+	if E.Classic then
+		if E.db.ElvUI_EltreumUI.skins.classicblueshaman then
+			if canTouchRaidClassColors and not cached_isInInstance then
+				_G.RAID_CLASS_COLORS['SHAMAN']["r"] = 0.00
+				_G.RAID_CLASS_COLORS['SHAMAN']["g"] = 0.44
+				_G.RAID_CLASS_COLORS['SHAMAN']["b"] = 0.87
+				_G.RAID_CLASS_COLORS['SHAMAN']["colorStr"] = "ff0070DD"
+			end
+			E.oUF.colors.class['SHAMAN'][1] = 0.00
+			E.oUF.colors.class['SHAMAN'][2] = 0.44
+			E.oUF.colors.class['SHAMAN'][3] = 0.87
+			E.oUF.colors.class['SHAMAN']["r"] = 0.00
+			E.oUF.colors.class['SHAMAN']["g"] = 0.44
+			E.oUF.colors.class['SHAMAN']["b"] = 0.87
+		end
+	end
+end
+
+--Export/Import Gradient Colors, basically copied from elvui distributor/core
+function ElvUI_EltreumUI:ExportImportGradient(data,mode)
+	local SerializeCBOR = _G.C_EncodingUtil.SerializeCBOR
+	local DeserializeCBOR = _G.C_EncodingUtil.DeserializeCBOR
+	local CompressString = _G.C_EncodingUtil.CompressString
+	local DecompressString = _G.C_EncodingUtil.DecompressString
+	local EncodeBase64 = _G.C_EncodingUtil.EncodeBase64
+	local DecodeBase64 = _G.C_EncodingUtil.DecodeBase64
+	local COMPRESS = _G.Enum.CompressionMethod.Deflate or 0
+	local OPTIMIZE = _G.Enum.CompressionLevel.Default or 0
+	local EXPORT_PREFIX = '!E2!'
+	if mode == "export" then
+		local gradienttable = {}
+		gradienttable = E:CopyTable(gradienttable, E.db.ElvUI_EltreumUI.unitframes.gradientmode)
+		local serialString = SerializeCBOR(gradienttable)
+		local compressedData = CompressString(serialString, COMPRESS, OPTIMIZE)
+		local printableString = EncodeBase64(compressedData)
+		local profileExport = printableString and format('%s%s', EXPORT_PREFIX, printableString) or nil
+		return profileExport
+	elseif mode == "import" then
+		local decodedData = DecodeBase64(data)
+		local decompressed = DecompressString(decodedData, COMPRESS)
+		if not decompressed then
+			E:Print('Error decompressing data.')
+			return
+		end
+		local serializedData, profileData
+		serializedData = E:SplitString(decompressed, '::')
+		profileData = DeserializeCBOR(serializedData)
+		if not profileData then
+			E:Print('Error deserializing:', profileData)
+			return
+		end
+		E:CopyTable(E.db.ElvUI_EltreumUI.unitframes.gradientmode, profileData)
+		E:StaticPopup_Show('CONFIG_RL')
+	end
+end
+
+--color picker wheel better masking
+local pickerWheel = _G.ColorPickerWheel or (_G.ColorPickerFrame and _G.ColorPickerFrame.Content and _G.ColorPickerFrame.Content.ColorPicker and _G.ColorPickerFrame.Content.ColorPicker.Wheel)
+if pickerWheel and _G.ColorPickerFrame then
+	local bettermask = _G.ColorPickerFrame:CreateMaskTexture()
+	bettermask:SetTexture("Interface\\Addons\\ElvUI_EltreumUI\\Media\\Textures\\map_circle.TGA", "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+	bettermask:SetPoint("TOPRIGHT", pickerWheel, "TOPRIGHT", 3, 3)
+	bettermask:SetPoint("BOTTOMLEFT", pickerWheel, "BOTTOMLEFT", -2, -2)
+	pickerWheel:AddMaskTexture(bettermask)
+end
+
+--because forever is a bit special with their specs
+local CLASS_TREE_TO_SPEC_ID = {
+	[1]  = { -- Warrior:
+		[1] = 71, --Arms
+		[2] = 72, --Fury
+		[3] = 73, --Protection
+	},
+	[2]  = { -- Paladin:
+		[1] = 65, --Holy
+		[2] = 66, --Protection
+		[3] = 70, --Retribution
+	},
+	[3]  = { -- Hunter:
+		[1] = 253, --Beast Mastery
+		[2] = 254, --Marksmanship
+		[3] = 255, --Survival
+	},
+	[4]  = { -- Rogue
+		[1] = 259, --Assassination
+		[2] = 260, --Combat
+		[3] = 261, --Subtlety
+	},
+	[5]  = { -- Priest
+		[1] = 256, --Discipline
+		[2] = 257, --Holy
+		[3] = 258, --Shadow
+	},
+	[7]  = { -- Shaman
+		[1] = 262, --Elemental
+		[2] = 263, --Enhancement
+		[3] = 264, --Restoration
+	},
+	[8]  = { -- Mage
+		[1] = 62, --Arcane
+		[2] = 63, --Fire
+		[3] = 64, --Frost
+	},
+	[9]  = { -- Warlock
+		[1] = 265, --Affliction
+		[2] = 266, --Demonology
+		[3] = 267, --Destruction
+	},
+	[11] = { -- Druid
+		[1] = 102, --Balance
+		[2] = 103, --Feral
+		[3] = 105, --Restoration
+	},
+}
+function ElvUI_EltreumUI:CheckForeverSpec()
+	local _, _, classID = UnitClass("player")
+	local activeGroup = GetActiveSpecGroup() or 1
+	local configID = GetCombatConfigIDForSpecGroup(activeGroup)
+	if not configID then return nil, nil, 0, 0, 0 end
+
+	local configInfo = GetConfigInfo(configID)
+	local treeID = configInfo and configInfo.treeIDs and configInfo.treeIDs[1]
+	if not treeID then return nil, nil, 0, 0, 0 end
+
+	local displayInfos = GetGroupDisplayInfoByTreeID(treeID)
+	if not displayInfos or #displayInfos == 0 then return nil, nil, 0, 0, 0 end
+
+	local groupIDs = {}
+	for _, info in ipairs(displayInfos) do
+		table.insert(groupIDs, info.groupID)
+	end
+	local groupCurrencyInfos = GetGroupCurrencyInfo(configID, groupIDs)
+	local currencyByGroup = {}
+	if groupCurrencyInfos then
+		for _, curr in ipairs(groupCurrencyInfos) do
+			currencyByGroup[curr.traitNodeGroupID] = curr.currencyInfos[1] and curr.currencyInfos[1].spent or 0
+		end
+	end
+
+	local spent1 = (displayInfos[1] and currencyByGroup[displayInfos[1].groupID]) or 0
+	local spent2 = (displayInfos[2] and currencyByGroup[displayInfos[2].groupID]) or 0
+	local spent3 = (displayInfos[3] and currencyByGroup[displayInfos[3].groupID]) or 0
+	local dominantIndex = 0
+	local dominantName = ""
+
+	if spent1 > spent2 and spent1 > spent3 then
+		dominantIndex = 1
+	elseif spent2 > spent1 and spent2 > spent3 then
+		dominantIndex = 2
+	elseif spent3 > spent1 and spent3 > spent2 then
+		dominantIndex = 3
+	end
+
+	if dominantIndex > 0 and displayInfos[dominantIndex] then
+		dominantName = displayInfos[dominantIndex].displayName or ""
+	end
+
+	local specID = 0
+	if dominantIndex > 0 and CLASS_TREE_TO_SPEC_ID[classID] and CLASS_TREE_TO_SPEC_ID[classID][dominantIndex] then
+		specID = CLASS_TREE_TO_SPEC_ID[classID][dominantIndex]
+	end
+
+	return specID, dominantName, spent1, spent2, spent3
+end
+
+--cursor positioning with 60 FPS throttle
+local GetCursorPosition = _G.GetCursorPosition
+local GetTime = _G.GetTime
+local CURSOR_THROTTLE = 0.016 --around 60fps
+local lastCursorPollTime = 0
+local lastRawCursorX, lastRawCursorY
+local lastOffsetX, lastOffsetY
+local lastScaleDivisor
+local cachedCursorPosX, cachedCursorPosY
+function ElvUI_EltreumUI:UpdateCursorPosition(frame, elapsed, force)
+	if not frame then return end
+	frame.EltruismTimeSinceLastUpdate = (frame.EltruismTimeSinceLastUpdate or 0) + (elapsed or 0)
+	if not force and frame.EltruismTimeSinceLastUpdate < CURSOR_THROTTLE then
+		return
+	end
+	frame.EltruismTimeSinceLastUpdate = 0
+
+	local now = GetTime()
+	if now ~= lastCursorPollTime or force then
+		lastCursorPollTime = now
+		local rawX, rawY = GetCursorPosition()
+		local offsetX = (E.db and E.db.ElvUI_EltreumUI and E.db.ElvUI_EltreumUI.cursors and E.db.ElvUI_EltreumUI.cursors.cursor and E.db.ElvUI_EltreumUI.cursors.cursor.cooldownoffsetx) or 0
+		local offsetY = (E.db and E.db.ElvUI_EltreumUI and E.db.ElvUI_EltreumUI.cursors and E.db.ElvUI_EltreumUI.cursors.cursor and E.db.ElvUI_EltreumUI.cursors.cursor.cooldownoffsety) or 0
+		local scaleDivisor = E.UIParent:GetEffectiveScale()
+		if rawX ~= lastRawCursorX or rawY ~= lastRawCursorY or offsetX ~= lastOffsetX or offsetY ~= lastOffsetY or scaleDivisor ~= lastScaleDivisor or force then
+			lastRawCursorX, lastRawCursorY = rawX, rawY
+			lastOffsetX, lastOffsetY = offsetX, offsetY
+			lastScaleDivisor = scaleDivisor
+			cachedCursorPosX = (rawX / scaleDivisor) + offsetX
+			cachedCursorPosY = (rawY / scaleDivisor) + offsetY
+		end
+	end
+
+	if cachedCursorPosX and (force or frame.EltruismCursorX ~= cachedCursorPosX or frame.EltruismCursorY ~= cachedCursorPosY) then
+		frame.EltruismCursorX = cachedCursorPosX
+		frame.EltruismCursorY = cachedCursorPosY
+		frame:ClearAllPoints()
+		frame:SetPoint("CENTER", E.UIParent, "BOTTOMLEFT", cachedCursorPosX, cachedCursorPosY)
+	end
+end
+
+--cache unit..'target' to avoid calling it again and again
+local targetUnitCache = {}
+function ElvUI_EltreumUI:GetTargetUnit(unit)
+	if not targetUnitCache[unit] then
+		targetUnitCache[unit] = unit .. 'target'
+	end
+	return targetUnitCache[unit]
+end
+
+local isModern = E.Modern
+local canaccessvalue = _G.canaccessvalue
+function ElvUI_EltreumUI:IsThisASafeSecret(value, hasValue, isBG)
+	if hasValue then
+		return canaccessvalue(value)
+	elseif isModern then
+		if isBG then
+			return not isPvP
+		else
+			return outside
+		end
+	end
+	return true
+end

@@ -1,0 +1,1019 @@
+local mMT, DB, M, E, P, L, MEDIA = unpack(ElvUI_mMediaTag)
+local module = mMT:GetModule("CooldownManager")
+
+-- Cache WoW Globals
+local _G = _G
+local hooksecurefunc = hooksecurefunc
+local ipairs = ipairs
+local pairs = pairs
+local next = next
+local type = type
+local pcall = pcall
+local wipe = wipe
+local tsort = table.sort
+local ceil = math.ceil
+local floor = math.floor
+local min = math.min
+local max = math.max
+local UnitClass = UnitClass
+local InCombatLockdown = InCombatLockdown
+local CreateFrame = CreateFrame
+local C_Timer = C_Timer
+local C_Spell_GetSpellCooldown = C_Spell.GetSpellCooldown
+local C_Spell_GetSpellCooldownDuration = C_Spell.GetSpellCooldownDuration
+local C_Spell_GetSpellChargeDuration = C_Spell.GetSpellChargeDuration
+local C_Spell_GetSpellCharges = C_Spell.GetSpellCharges
+local C_ActionBar_FindSpellActionButtons = C_ActionBar.FindSpellActionButtons
+local FindSpellOverrideByID = C_SpellBook and C_SpellBook.FindSpellOverrideByID
+local IsSpellOverlayed = C_SpellActivationOverlay and C_SpellActivationOverlay.IsSpellOverlayed
+
+local LSM = module.LSM
+local LCG = module.LCG
+local GLOW_KEY = "mMT_CDM"
+local PANDEMIC_KEY = "mMT_CDM_Pandemic"
+local GLOW_LEVEL = 8
+local GLOW_PREFIXES = { "_PixelGlow", "_AutoCastGlow", "_ButtonGlow", "_ProcGlow" }
+local COOLDOWN_SWIPE_ALPHA = 0.7
+local AURA_SWIPE = { r = 1, g = 0.95, b = 0.57, a = 0.7 }
+
+-- Blizzard exposes its own swipe colors once the viewer addon is loaded
+local function BlizzardColor(name, fallback)
+	local constants = _G.CooldownViewerConstants
+	return (constants and constants[name]) or fallback
+end
+
+local glowColor = {}
+
+local function Disabled()
+	return module:IsDisabled()
+end
+
+local function IgnoreQuadrant() end
+
+function module:CreateContainer(key)
+	local info = module.VIEWERS[key]
+	local vdb = module:ViewerDB(key)
+
+	local w, h
+	if key == "buff_bar" then
+		w = vdb and vdb.width or 200
+		h = (vdb and vdb.height or 20) * 4
+	else
+		local iconW = vdb and vdb.width or 30
+		local iconH = (vdb and vdb.keep_ratio and iconW) or (vdb and vdb.height or 30)
+		w, h = iconW * 8, iconH * 2
+	end
+
+	local frame = CreateFrame("Frame", info.mover .. "_Holder", E.UIParent)
+	frame:SetSize(w, h)
+	frame:SetPoint("TOPLEFT", E.UIParent, "CENTER", 0, 0)
+	frame:SetFrameStrata("MEDIUM")
+	frame:SetFrameLevel(5)
+
+	E:CreateMover(frame, info.mover .. "_Mover", "mMT " .. info.label, nil, nil, IgnoreQuadrant, "ALL,MMEDIATAG", Disabled, "mMT,cooldownmanager,viewers," .. key)
+
+	module.containers[key] = frame
+	return frame
+end
+
+-- A no-op SetSize can still run the mover hook chain into a protected call while in combat
+function module:SetContainerSize(container, w, h)
+	if not container then return end
+	if container.mmtW == w and container.mmtH == h then return end
+	container:SetSize(w, h)
+	container.mmtW, container.mmtH = w, h
+end
+
+local anchorIDs = {}
+
+-- Empty frame name keeps the mover, ANCHOR:<key> hangs the container under another container
+function module:AnchorTarget(id)
+	local vdb = module:ViewerDB(id)
+	local name = vdb and vdb.anchor and vdb.anchor.frame
+	if not name or name == "" then return end
+
+	local other = anchorIDs[name]
+	if other == nil then
+		other = name:match("^ANCHOR:(.+)$") or false
+		anchorIDs[name] = other
+	end
+	if other then return other ~= id and module.containers[other] or nil end
+
+	local frame = _G[name]
+	if type(frame) == "table" and frame.GetObjectType and frame ~= module.containers[id] then return frame end
+end
+
+function module:AnchorToTarget(container, target, adb)
+	if
+		container.mmtAnchorTarget == target
+		and container.mmtAnchorPoint == adb.point
+		and container.mmtAnchorRelative == adb.relative
+		and container.mmtAnchorX == adb.x
+		and container.mmtAnchorY == adb.y
+	then
+		return true
+	end
+
+	container:ClearAllPoints()
+	container.mmtAnchorGrowth = nil
+	-- a dependency loop makes SetPoint throw, the caller then falls back to the mover
+	if not pcall(container.SetPoint, container, adb.point, target, adb.relative, adb.x, adb.y) then return false end
+
+	container.mmtAnchorTarget, container.mmtAnchorPoint, container.mmtAnchorRelative, container.mmtAnchorX, container.mmtAnchorY = target, adb.point, adb.relative, adb.x, adb.y
+	return true
+end
+
+function module:AnchorToMover(id, growth)
+	local container = module.containers[id]
+	if not container then return end
+
+	local target = module:AnchorTarget(id)
+	if target and module:AnchorToTarget(container, target, module:ViewerDB(id).anchor) then return end
+	container.mmtAnchorTarget = nil
+
+	local mover = _G[module.VIEWERS[id].mover .. "_Mover"]
+	if not mover then return end
+
+	-- only a new size or growth moves anything, every other pass would just set the same anchors again
+	if container.mmtAnchorGrowth == growth and container.mmtAnchorW == container.mmtW and container.mmtAnchorH == container.mmtH then return end
+
+	-- Keep the edge the icons grow away from pinned, otherwise the block walks across the screen
+	local inCombat = InCombatLockdown()
+	if not inCombat and mover:GetPoint() then
+		local anchor = (growth == "UP" and "BOTTOM") or (growth == "DOWN" and "TOP") or "CENTER"
+		local x = (mover:GetLeft() + mover:GetRight()) / 2
+		local y
+		if anchor == "BOTTOM" then
+			y = mover:GetBottom()
+		elseif anchor == "TOP" then
+			y = mover:GetTop()
+		else
+			y = (mover:GetBottom() + mover:GetTop()) / 2
+		end
+
+		if x and y then
+			mover:ClearAllPoints()
+			mover:SetPoint(anchor, _G.UIParent, "BOTTOMLEFT", x, y)
+		end
+	end
+
+	container:ClearAllPoints()
+	if growth == "UP" then
+		container:SetPoint("BOTTOM", mover, "BOTTOM")
+	elseif growth == "DOWN" then
+		container:SetPoint("TOP", mover, "TOP")
+	else
+		container:SetPoint("CENTER", mover, "CENTER")
+	end
+
+	-- in combat the mover could not be pinned, so the next pass has to try again
+	if not inCombat then
+		container.mmtAnchorGrowth, container.mmtAnchorW, container.mmtAnchorH = growth, container.mmtW, container.mmtH
+	end
+end
+
+function module:ShouldShow(key)
+	local vdb = module:ViewerDB(key)
+	if not vdb then return true end
+
+	if module.demoActive and key ~= "custom" then return true end
+
+	-- Hiding a container fires the viewers OnHide, which unregisters UNIT_AURA and stops it filling again
+	if key == "custom" and module.emptyViewers[key] then return false end
+
+	local visibility = vdb.visibility or "ALWAYS"
+	if visibility == "HIDDEN" then return false end
+	-- a faded out tracker would still take clicks and tooltips, the viewers must stay shown
+	if visibility == "FADER" then return key ~= "custom" or module:ContainerAlpha(key) > 0 end
+	if visibility == "INCOMBAT" and not module.inCombat then return false end
+	if visibility == "INPARTY" and not _G.IsInGroup() then return false end
+	return true
+end
+
+function module:ContainerAlpha(key)
+	local vdb = module:ViewerDB(key)
+	local alpha = (vdb and vdb.alpha) or 1
+
+	if vdb and vdb.visibility == "FADER" and not module.demoActive then
+		local player = _G.ElvUF_Player
+		alpha = alpha * ((player and player:GetAlpha()) or 1)
+	end
+
+	return alpha
+end
+
+local function StopFade(container)
+	E:UIFrameFadeRemoveFrame(container)
+	container.mmtFadingOut = nil
+
+	if container.mmtHideTimer then
+		container.mmtHideTimer:Cancel()
+		container.mmtHideTimer = nil
+	end
+end
+
+local function FinishHide(container)
+	container.mmtFadingOut = nil
+	container:Hide()
+end
+
+-- ElvUIs fader finishes instantly on a hidden frame, so the container stays shown until the fade is done
+local function FadeOut(container, fade)
+	container.mmtHideTimer = nil
+	if not container:IsShown() then return end
+
+	if not fade or fade <= 0 then
+		container:Hide()
+		return
+	end
+
+	container.mmtFadingOut = true
+	E:UIFrameFadeOut(container, fade, container:GetAlpha(), 0)
+	container.FadeObject.finishedFunc = FinishHide
+	container.FadeObject.finishedArg1 = container
+end
+
+function module:UpdateContainerShown(key)
+	local container = module.containers[key]
+	if not container then return end
+
+	local vdb = module:ViewerDB(key)
+	-- attached to another frame it has to appear and vanish with it
+	local attached = module:AnchorTarget(key) ~= nil
+	local fade = (not attached and vdb and vdb.fade_time) or 0
+	local alpha = module:ContainerAlpha(key)
+
+	if module:ShouldShow(key) then
+		local interrupted = container.mmtFadingOut or container.mmtHideTimer ~= nil
+		StopFade(container)
+
+		if not container:IsShown() then
+			container:Show()
+			container:SetAlpha(0)
+			interrupted = true
+		end
+
+		if interrupted and fade > 0 then
+			E:UIFrameFadeIn(container, fade, container:GetAlpha(), alpha)
+		else
+			container:SetAlpha(alpha)
+		end
+
+		return
+	end
+
+	if not container:IsShown() or container.mmtFadingOut or container.mmtHideTimer then return end
+
+	local delay = (not attached and vdb and vdb.hide_delay) or 0
+	if delay > 0 then
+		container.mmtHideTimer = C_Timer.NewTimer(delay, function()
+			FadeOut(container, fade)
+		end)
+	else
+		FadeOut(container, fade)
+	end
+end
+
+function module:UpdateVisibility()
+	if module:IsDisabled() then return end
+
+	for key in pairs(module.VIEWERS) do
+		if module.containers[key] then
+			module:UpdateContainerShown(key)
+
+			-- The container carries the opacity, a second alpha on the viewer would square it
+			local viewer = module:GetViewer(key)
+			if viewer then viewer:SetAlpha(1) end
+		end
+	end
+end
+
+local function ViewerKey(frame)
+	return module.styled[frame] or frame.mmtViewerKey
+end
+
+-- LibCustomGlow levels against the frame it is given, and Blizzard hands the bar children absolute
+-- levels (Bar 511, Icon 512, DebuffBorder 520), so the anchor has to clear the highest child
+local function GlowAnchor(frame)
+	local anchor = frame.mmtGlowAnchor
+	if not anchor then
+		anchor = CreateFrame("Frame", nil, frame)
+		anchor:SetAllPoints(frame)
+		frame.mmtGlowAnchor = anchor
+	end
+
+	local level = frame:GetFrameLevel()
+	for _, child in next, { frame:GetChildren() } do
+		if child ~= anchor and child:GetFrameLevel() > level then level = child:GetFrameLevel() end
+	end
+
+	anchor:SetFrameStrata(frame:GetFrameStrata())
+	anchor:SetFrameLevel(level + GLOW_LEVEL)
+	return anchor
+end
+
+function module:StopGlow(frame, key)
+	key = key or GLOW_KEY
+	local active = module.glowActive[frame]
+	if not LCG or not (active and active[key]) then return end
+	active[key] = nil
+
+	local target = frame.mmtGlowAnchor or frame
+	LCG.PixelGlow_Stop(target, key)
+	LCG.AutoCastGlow_Stop(target, key)
+	LCG.ButtonGlow_Stop(target)
+	LCG.ProcGlow_Stop(target, key)
+end
+
+function module:ApplyGlow(frame, glow, key)
+	if not LCG or not glow then return end
+	key = key or GLOW_KEY
+
+	local active = module.glowActive[frame]
+	if not active then
+		active = {}
+		module.glowActive[frame] = active
+	end
+
+	active[key] = true
+
+	local color = glow.color
+	if color then
+		glowColor[1], glowColor[2], glowColor[3], glowColor[4] = color.r, color.g, color.b, color.a or 1
+	else
+		glowColor[1], glowColor[2], glowColor[3], glowColor[4] = 0.95, 0.95, 0.32, 1
+	end
+
+	local target = GlowAnchor(frame)
+	local style = glow.type or "pixel"
+	if style == "pixel" then
+		LCG.PixelGlow_Start(target, glowColor, glow.lines or 8, glow.speed or 0.25, nil, glow.thickness or 2, 0, 0, nil, key, GLOW_LEVEL)
+	elseif style == "autocast" then
+		LCG.AutoCastGlow_Start(target, glowColor, glow.particles or 4, glow.speed or 0.25, glow.scale or 1, 0, 0, key, GLOW_LEVEL)
+	elseif style == "button" then
+		LCG.ButtonGlow_Start(target, glowColor, glow.speed or 0.25, GLOW_LEVEL)
+	elseif style == "proc" then
+		LCG.ProcGlow_Start(target, { color = glowColor, startAnim = glow.start_anim ~= false, key = key, frameLevel = GLOW_LEVEL })
+	end
+
+	-- The pooled glow frame may still carry a strata from an earlier user, so both are pinned here
+	for _, prefix in ipairs(GLOW_PREFIXES) do
+		local glowFrame = target[prefix .. key]
+		if glowFrame then
+			glowFrame:SetFrameStrata(target:GetFrameStrata())
+			glowFrame:SetFrameLevel(target:GetFrameLevel() + GLOW_LEVEL)
+			glowFrame:ClearAllPoints()
+			glowFrame:SetPoint("TOPLEFT", target, "TOPLEFT", 0, 0)
+			glowFrame:SetPoint("BOTTOMRIGHT", target, "BOTTOMRIGHT", 0, 0)
+			break
+		end
+	end
+end
+
+-- GetSpellID hands back the secret aura spell on a buff item, and secrets are neither valid table keys nor allowed as API arguments
+function module:ReadableSpellID(frame, getter)
+	if not frame or not frame[getter] then return nil end
+
+	local spellID = frame[getter](frame)
+	return (E:NotSecretValue(spellID) and spellID) or nil
+end
+
+-- Buff icons glow for as long as the tracked buff is up, cooldown icons only while the spell procs
+local function GlowSettings(frame)
+	local key = ViewerKey(frame)
+	if key == "buff_icon" or key == "buff_bar" then
+		local spellID = module:ReadableSpellID(frame, "GetBaseSpellID")
+		return spellID and module:GetSpellGlow(spellID), true
+	end
+
+	local vdb = module:ViewerDB(key)
+	return vdb and vdb.glow, false
+end
+
+-- 12.1 dropped the SpellActivationAlert child, the proc state now lives in C_SpellActivationOverlay
+local function IsOverlayed(frame)
+	if not IsSpellOverlayed then return false end
+
+	-- a proc can sit on the override as well as on the base spell
+	local spellID = module:ReadableSpellID(frame, "GetSpellID")
+	if spellID and IsSpellOverlayed(spellID) then return true end
+
+	local baseSpellID = module:ReadableSpellID(frame, "GetBaseSpellID")
+	return (baseSpellID and baseSpellID ~= spellID and IsSpellOverlayed(baseSpellID)) or false
+end
+
+function module:RefreshGlow(frame)
+	local glow, perSpell = GlowSettings(frame)
+	if not (glow and glow.enable) then
+		module:StopGlow(frame)
+		return
+	end
+
+	local manager = _G.ActionButtonSpellAlertManager
+	if manager and manager.HideAlert then manager:HideAlert(frame) end
+
+	-- the proc state Blizzard decided with the real spell id wins, our own check is only the fallback
+	local procActive = frame.mmtProcActive
+	if procActive == nil then procActive = IsOverlayed(frame) end
+
+	if perSpell or frame.mmtDemoGlow or procActive then
+		module:ApplyGlow(frame, glow)
+	else
+		module:StopGlow(frame)
+	end
+end
+
+-- What Blizzard just decided: the proc events pass the state, a refresh of the whole item lets Blizzard check the
+-- real (possibly secret) spell id itself, its alert state is read before RefreshGlow replaces the alert with ours
+local function ReadBlizzardProc(frame, desiredShow)
+	if desiredShow ~= nil then return desiredShow == true end
+
+	local manager = _G.ActionButtonSpellAlertManager
+	local alerts = manager and manager.activeAlerts
+	if type(alerts) == "table" then return alerts[frame] ~= nil end
+
+	local alert = frame.SpellActivationAlert
+	if alert then return alert:IsShown() end
+
+	return IsOverlayed(frame)
+end
+
+-- Blizzard calls RefreshOverlayGlow on every proc change, so the glow needs no polling
+function module:HookGlow(frame)
+	if module.hookedGlow[frame] or not frame.RefreshOverlayGlow then return end
+	module.hookedGlow[frame] = true
+
+	hooksecurefunc(frame, "RefreshOverlayGlow", function(self, desiredShow)
+		self.mmtProcActive = ReadBlizzardProc(self, desiredShow)
+		module:RefreshGlow(self)
+	end)
+end
+
+-- Blizzard re-shows the border on every aura refresh, so the hook has to re-read the setting
+function module:ApplyDebuffBorder(frame, vdb)
+	local border = frame.DebuffBorder
+	if not border then return end
+
+	if not frame.mmtBorderHooked then
+		frame.mmtBorderHooked = true
+		hooksecurefunc(border, "Show", function(self)
+			local settings = module:ViewerDB(ViewerKey(frame))
+			if settings and not settings.debuff_border then self:Hide() end
+		end)
+	end
+
+	if not vdb.debuff_border then border:Hide() end
+end
+
+local function PaintTextures(frame, r, g, b)
+	for _, region in next, { frame:GetRegions() } do
+		if region:IsObjectType("Texture") and not region:IsObjectType("MaskTexture") then region:SetVertexColor(r, g, b) end
+	end
+
+	for _, child in next, { frame:GetChildren() } do
+		PaintTextures(child, r, g, b)
+	end
+end
+
+-- The setting was a plain boolean in the first build, normalize what may still sit in a profile
+local function PandemicStyle(vdb)
+	local style = vdb.pandemic
+	if style == true then return "blizzard" end
+	if style == false then return "none" end
+	return style
+end
+
+-- Only runs when the marker is acquired or released, and once per active item after a refresh
+function module:SetPandemic(item, active, icon, key)
+	key = key or ViewerKey(item)
+	local vdb = key and not module:IsDisabled() and module:IsManaged(key) and module:ViewerDB(key)
+	local style = vdb and PandemicStyle(vdb) or "blizzard"
+	icon = icon or item.PandemicIcon
+
+	module.pandemicActive[item] = active and key or nil
+
+	if icon and active then
+		-- Blizzard shows the marker on every tick but never touches its alpha
+		if style == "blizzard" then
+			icon:SetAlpha(1)
+
+			-- pooled markers keep their tint, so a removed color has to be painted back
+			local color = vdb and vdb.pandemic_color
+			if color then
+				PaintTextures(icon, color.r, color.g, color.b)
+			elseif icon.mmtPandemicTinted then
+				PaintTextures(icon, 1, 1, 1)
+			end
+			icon.mmtPandemicTinted = color and true or nil
+		else
+			icon:SetAlpha(0)
+		end
+	end
+
+	if active and style == "glow" then
+		module:ApplyGlow(item, vdb.pandemic_glow, PANDEMIC_KEY)
+	else
+		module:StopGlow(item, PANDEMIC_KEY)
+	end
+end
+
+-- Blizzard checks the pandemic window every frame, the viewer only acquires and releases the marker on a change
+function module:HookPandemic(viewer, key)
+	if module.hookedPandemic[viewer] or not viewer.AnchorPandemicStateFrame or not viewer.HidePandemicStateFrame then return end
+	module.hookedPandemic[viewer] = true
+
+	hooksecurefunc(viewer, "AnchorPandemicStateFrame", function(_, icon, item)
+		icon.mmtPandemicItem = item
+		module:SetPandemic(item, true, icon, key)
+	end)
+
+	hooksecurefunc(viewer, "HidePandemicStateFrame", function(_, icon)
+		local item = icon and icon.mmtPandemicItem
+		if item then module:SetPandemic(item, false, icon, key) end
+	end)
+end
+
+function module:StyleText(fs, text)
+	if not fs or not text then return end
+
+	fs:SetIgnoreParentScale(true)
+	fs:ClearAllPoints()
+	fs:SetPoint(text.position, text.x, text.y)
+
+	E:SetFont(fs, LSM:Fetch("font", text.font or "PT Sans Narrow"), text.size, text.font_flag or "OUTLINE")
+
+	if text.class_color then
+		local color = E:ClassColor(E.myclass)
+		if color then
+			fs:SetTextColor(color.r, color.g, color.b)
+			return
+		end
+	end
+
+	fs:SetTextColor(text.color.r, text.color.g, text.color.b)
+end
+
+function module:ApplyCountText(frame, text)
+	if not text then return end
+
+	module:StyleText(frame.Applications and frame.Applications.Applications, text)
+	module:StyleText(frame.Count, text)
+	module:StyleText(frame.ChargeCount and frame.ChargeCount.Current, text)
+end
+
+-- Park the countdown region on mmtText and clear Cooldown.Text so ElvUI's CooldownText skips its own font pass
+function module:ApplyCooldownText(cooldown, text)
+	if not cooldown or not text then return end
+
+	cooldown:SetHideCountdownNumbers(cooldown.mmtDemo or false)
+
+	local fs = cooldown.mmtText or cooldown.Text or cooldown:GetRegions()
+	if fs and fs.SetTextColor then
+		cooldown.mmtText = fs
+		cooldown.Text = nil
+		module:StyleText(fs, text)
+	end
+end
+
+-- Blizzard re-enables swipe and edge whenever a cooldown starts, so both need a standing hook
+function module:ApplySwipeOverride(cooldown, db)
+	if not cooldown or not db.hide_swipe then return end
+
+	cooldown:SetDrawSwipe(false)
+	cooldown:SetDrawEdge(false)
+
+	if module.hookedSwipes[cooldown] then return end
+	module.hookedSwipes[cooldown] = true
+
+	hooksecurefunc(cooldown, "SetDrawSwipe", function(self, draw)
+		if not draw then return end
+		local dir = self.mmtASDir
+		local item = self.mmtASItem
+		local keepActive = dir and dir.swipe and not dir.showCD and item and item.cooldownSwipeColor and E:NotSecretValue(item.cooldownSwipeColor.r) and item.cooldownSwipeColor.r ~= 0
+		if not keepActive and not module:IsDisabled() and module:GetDB().hide_swipe then self:SetDrawSwipe(false) end
+	end)
+
+	hooksecurefunc(cooldown, "SetDrawEdge", function(self, draw)
+		if draw and not module:IsDisabled() and module:GetDB().hide_swipe then self:SetDrawEdge(false) end
+	end)
+end
+
+function module:ApplyTextOverrides(frame, vdb, db)
+	module:ApplyCountText(frame, vdb.count_text)
+	module:ApplyCooldownText(frame.Cooldown, vdb.cooldown_text)
+	module:ApplySwipeOverride(frame.Cooldown, db)
+end
+
+-- Blizzard tints the swipe with the aura color (r = 1) while the buff runs and black (r = 0) on cooldown
+local function IsActivePhase(frame)
+	local swipe = frame and frame.cooldownSwipeColor
+	return (swipe and E:NotSecretValue(swipe.r) and swipe.r ~= 0) or false
+end
+
+-- Charge spells stay castable during their buff, so they must never be greyed; currentCharges is secret, maxCharges is not
+local function IsChargeable(spellID)
+	if not (spellID and C_Spell_GetSpellCharges) then return false end
+
+	local info = C_Spell_GetSpellCharges((FindSpellOverrideByID and FindSpellOverrideByID(spellID)) or spellID)
+	return (info and E:NotSecretValue(info.maxCharges) and info.maxCharges > 1) or false
+end
+
+local function PlayerClassColor()
+	local _, class = UnitClass("player")
+	return class and E:ClassColor(class)
+end
+
+local function ResolveActiveState(state)
+	local mode = (state and state.mode) or "default"
+
+	if mode == "hide" then
+		return { swipe = { 0, 0, 0, COOLDOWN_SWIPE_ALPHA }, showCD = true, desat = true }
+	elseif mode == "custom" then
+		local dir = { desat = state.desaturate or false }
+		local swipe = state.swipe or "aura"
+
+		if swipe == "color" and state.swipe_color then
+			local c = state.swipe_color
+			dir.swipe = { c.r, c.g, c.b, c.a or COOLDOWN_SWIPE_ALPHA }
+		elseif swipe == "class" then
+			local c = PlayerClassColor()
+			if c then dir.swipe = { c.r, c.g, c.b, COOLDOWN_SWIPE_ALPHA } end
+		end
+
+		if state.text_class_color then
+			local c = PlayerClassColor()
+			if c then dir.text = { c.r, c.g, c.b } end
+		elseif state.text_color then
+			dir.text = { state.text_color.r, state.text_color.g, state.text_color.b }
+		end
+
+		return dir
+	end
+end
+
+local function AssertActiveState(cooldown, dir)
+	if cooldown.mmtASBusy then return end
+	cooldown.mmtASBusy = true
+
+	if dir.swipe then
+		cooldown:SetSwipeColor(dir.swipe[1], dir.swipe[2], dir.swipe[3], dir.swipe[4])
+		if dir.showCD then cooldown:SetDrawSwipe(true) end
+	end
+
+	if dir.showCD then
+		if cooldown.SetUseAuraDisplayTime then cooldown:SetUseAuraDisplayTime(false) end
+
+		local spellID = cooldown.mmtASSpell
+		if spellID and cooldown.SetCooldownFromDurationObject then
+			local effectiveID = (FindSpellOverrideByID and FindSpellOverrideByID(spellID)) or spellID
+			if cooldown.mmtASChargeable then
+				-- GetSpellCooldown reads inactive while a charge is left, the recharge duration object is the only secret-safe source
+				local duration = C_Spell_GetSpellChargeDuration and C_Spell_GetSpellChargeDuration(effectiveID)
+				if duration then cooldown:SetCooldownFromDurationObject(duration) end
+			else
+				local info = C_Spell_GetSpellCooldown and C_Spell_GetSpellCooldown(effectiveID)
+				if info and info.isActive then
+					local duration = C_Spell_GetSpellCooldownDuration and C_Spell_GetSpellCooldownDuration(effectiveID)
+					if duration then cooldown:SetCooldownFromDurationObject(duration) end
+				end
+			end
+		end
+	end
+
+	if dir.text then
+		local fs = cooldown.mmtText or cooldown.Text
+		if fs and fs.SetTextColor then
+			if not cooldown.mmtASTextOrig then cooldown.mmtASTextOrig = { fs:GetTextColor() } end
+			fs:SetTextColor(dir.text[1], dir.text[2], dir.text[3])
+		end
+	end
+
+	cooldown.mmtASBusy = false
+end
+
+local function RestoreActiveText(cooldown)
+	local orig = cooldown.mmtASTextOrig
+	if not orig then return end
+	cooldown.mmtASTextOrig = nil
+
+	local fs = cooldown.mmtText or cooldown.Text
+	if fs and fs.SetTextColor then fs:SetTextColor(orig[1] or 1, orig[2] or 1, orig[3] or 1, orig[4] or 1) end
+end
+
+-- The hooks no-op without a directive, so every mode can share them and ride Blizzard's own untainted ticks
+local function EnsureActiveStateHooks(frame, cooldown)
+	if not module.hookedActiveState[cooldown] then
+		module.hookedActiveState[cooldown] = true
+		hooksecurefunc(cooldown, "SetSwipeColor", function(self, r)
+			local dir = self.mmtASDir
+			if not dir or self.mmtASBusy or type(r) ~= "number" or not E:NotSecretValue(r) then return end
+			if r ~= 0 then
+				AssertActiveState(self, dir)
+			else
+				RestoreActiveText(self)
+			end
+		end)
+	end
+
+	if frame.RefreshIconDesaturation and not module.hookedActiveState[frame] then
+		module.hookedActiveState[frame] = true
+		hooksecurefunc(frame, "RefreshIconDesaturation", function(self)
+			local dir = self.Cooldown and self.Cooldown.mmtASDir
+			if dir and dir.desat and not self.Cooldown.mmtASChargeable and IsActivePhase(self) then
+				local texture = self.GetIconTexture and self:GetIconTexture()
+				if texture then texture:SetDesaturated(true) end
+			end
+		end)
+	end
+end
+
+function module:ApplyActiveState(frame, spellID)
+	local cooldown = frame and frame.Cooldown
+	if not cooldown then return end
+
+	EnsureActiveStateHooks(frame, cooldown)
+
+	local dir = ResolveActiveState(spellID and module:GetSpellActiveState(spellID))
+	cooldown.mmtASDir = dir
+	cooldown.mmtASSpell = (dir and spellID) or nil
+	cooldown.mmtASItem = frame
+	cooldown.mmtASChargeable = (dir and dir.desat and IsChargeable(spellID)) or nil
+
+	local active = IsActivePhase(frame)
+
+	if dir then
+		cooldown.mmtASApplied = true
+		if active then
+			AssertActiveState(cooldown, dir)
+			if frame.GetIconTexture then frame:GetIconTexture():SetDesaturated((dir.desat and not cooldown.mmtASChargeable) or false) end
+		end
+	elseif cooldown.mmtASApplied then
+		-- Only restore once, never on always-default spells, or the aura display fights us on every layout pass
+		cooldown.mmtASApplied = nil
+		RestoreActiveText(cooldown)
+		if cooldown.SetUseAuraDisplayTime then cooldown:SetUseAuraDisplayTime(true) end
+		if active then
+			local aura = BlizzardColor("ITEM_AURA_COLOR", AURA_SWIPE)
+			cooldown:SetSwipeColor(aura.r, aura.g, aura.b, aura.a)
+			if frame.GetIconTexture then frame:GetIconTexture():SetDesaturated(false) end
+		end
+	end
+end
+
+local actionKeys, actionKeysBuilt = {}, false
+
+local function BuildActionKeys()
+	actionKeysBuilt = true
+	wipe(actionKeys)
+
+	-- all ElvUI bars, the numbering skips 11 and 12 (bar13 to bar15 exist)
+	local AB = E:GetModule("ActionBars", true)
+	if not (AB and AB.handledBars) then return end
+
+	for _, bar in pairs(AB.handledBars) do
+		for _, button in ipairs(bar.buttons or {}) do
+			local action = button._state_action
+			if action and button.HotKey then
+				local text = button.HotKey:GetText()
+				if text and text ~= "" and text ~= _G.RANGE_INDICATOR then actionKeys[action] = text end
+			end
+		end
+	end
+end
+
+-- the result per spell is kept, FindSpellActionButtons hands out a new table on every call and the layout asks for every icon
+local keybindBySpell = {}
+
+function module:ResetKeybinds()
+	actionKeysBuilt = false
+	wipe(keybindBySpell)
+end
+
+function module:GetSpellKeybind(spellID)
+	local cached = keybindBySpell[spellID]
+	if cached ~= nil then return cached or nil end
+
+	local key = false
+	local slots = C_ActionBar_FindSpellActionButtons(spellID)
+	if slots then
+		if not actionKeysBuilt then BuildActionKeys() end
+
+		for _, slot in ipairs(slots) do
+			if actionKeys[slot] then
+				key = actionKeys[slot]
+				break
+			end
+		end
+	end
+
+	keybindBySpell[spellID] = key
+	return key or nil
+end
+
+function module:ApplyKeybindText(frame, vdb)
+	local text = vdb and vdb.keybind_text
+	local wanted = vdb and vdb.keybind and text
+	local spellID = wanted and module:ReadableSpellID(frame, "GetBaseSpellID")
+
+	if not wanted or not (spellID or frame.mmtDemoKey) then
+		if frame.mmtKeybind then frame.mmtKeybind:SetText("") end
+		return
+	end
+
+	if not frame.mmtKeybind then
+		frame.mmtKeybind = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+		frame.mmtKeybind:SetJustifyH("RIGHT")
+		frame.mmtKeybind:SetWordWrap(false)
+	end
+
+	module:StyleText(frame.mmtKeybind, text)
+	frame.mmtKeybind:SetText(frame.mmtDemoKey or (spellID and module:GetSpellKeybind(spellID)) or "")
+	frame.mmtKeybind:Show()
+end
+
+local watchedTargets = {}
+
+-- Stacked above or below the target takes its width, placed beside it takes its height
+function module:MatchedSize(id, ldb)
+	local fixedWidth, fixedHeight = ldb.max_width or 0, ldb.max_height or 0
+	local adb = ldb.anchor
+	if not id or not adb or not adb.match then return fixedWidth, fixedHeight end
+
+	local target = module:AnchorTarget(id)
+	if not target then return fixedWidth, fixedHeight end
+
+	if not watchedTargets[target] then
+		watchedTargets[target] = true
+		target:HookScript("OnSizeChanged", function()
+			module:ScheduleRelayout()
+		end)
+	end
+
+	local point, relative = adb.point, adb.relative
+	-- the target can sit under another scale than the container
+	local container = module.containers[id]
+	local scale = (target:GetEffectiveScale() or 1) / ((container and container:GetEffectiveScale()) or 1)
+	-- what counts as the edge of a bar differs, so the user sets the pixels per side
+	local grow = 2 * (adb.match_offset or 0) * (E.mult or 1)
+	local width, height = (target:GetWidth() or 0) * scale + grow, (target:GetHeight() or 0) * scale + grow
+	if (point:find("TOP") and relative:find("BOTTOM")) or (point:find("BOTTOM") and relative:find("TOP")) then
+		if width > 1 then return width, fixedHeight, true, false end
+	elseif (point:find("LEFT") and relative:find("RIGHT")) or (point:find("RIGHT") and relative:find("LEFT")) then
+		if height > 1 then return fixedWidth, height, false, true end
+	end
+
+	return fixedWidth, fixedHeight
+end
+
+-- A matched container takes exactly the size of its target however many icons it holds, so a chain of them stays aligned
+function module:MatchedBlock(id, ldb)
+	local fixedWidth, fixedHeight, widthMatched, heightMatched = module:MatchedSize(id, ldb)
+	return widthMatched and E:Scale(fixedWidth) or nil, heightMatched and E:Scale(fixedHeight) or nil
+end
+
+-- A fixed width or height replaces the icon size settings: the width is split over the icons of the widest row, the
+-- height over the rows, so the block always fills it. With only one of them set the icons stay square.
+-- A max icon size shrinks bigger icons in their ratio, the third return tells the block is no longer filled.
+function module:FitIconSize(vdb, width, height, spacing, cols, rows, id)
+	local fixedWidth, fixedHeight = module:MatchedSize(id, vdb)
+	if fixedWidth <= 0 and fixedHeight <= 0 then return width, height end
+
+	local w = fixedWidth > 0 and (E:Scale(fixedWidth) - (cols - 1) * spacing) / cols or nil
+	local h = fixedHeight > 0 and (E:Scale(fixedHeight) - (rows - 1) * spacing) / rows or nil
+	w, h = w or h, h or w
+
+	local maxSize = (vdb.max_icon_size or 0) > 0 and E:Scale(vdb.max_icon_size)
+	local capped = maxSize and max(w, h) > maxSize
+	if capped then
+		local factor = maxSize / max(w, h)
+		w, h = w * factor, h * factor
+	end
+
+	-- round down to whole pixels so the block never ends up bigger than asked, a spacing wider than the block would go below zero
+	local pixel = E.mult or 1
+	local minSize = 4 * pixel
+	return max(floor(w / pixel) * pixel, minSize), max(floor(h / pixel) * pixel, minSize), capped
+end
+
+-- Fills starts and sizes of count slots in a row. A matched block hands the pixels the slot size was rounded down by to single
+-- slots, evenly spread, so the gaps stay the same and the block is filled to its edge. Returns the size of the content.
+local columnSizes, columnStarts, rowSizes, rowStarts = {}, {}, {}, {}
+
+function module:SpreadSlots(count, size, spacing, block, sizes, starts)
+	local pixel = E.mult or 1
+	local extra = block and floor((block - (count * size + (count - 1) * spacing)) / pixel + 0.001) or 0
+	local position = 0
+
+	for slot = 1, count do
+		local slotSize = size
+		if extra > 0 and floor(slot * extra / count) > floor((slot - 1) * extra / count) then slotSize = size + pixel end
+
+		sizes[slot], starts[slot] = slotSize, position
+		position = position + slotSize + spacing
+	end
+
+	return position - spacing
+end
+
+-- Reading the pool is safe, releasing or acquiring from here would taint every later EnumerateActive
+function module:LayoutIconViewer(key, capture, callback)
+	local container = module.containers[key]
+	local vdb = module:ViewerDB(key)
+	local viewer = module:GetViewer(key)
+	local demo = module:DemoFrames(key)
+	if not container or not vdb or module:IsDisabled() then return end
+	if not demo and not (viewer and viewer.itemFramePool) then return end
+
+	local db = module:GetDB()
+	local width = E:Scale(vdb.width or 30)
+	local height = (vdb.keep_ratio and width) or E:Scale(vdb.height or 30)
+	local perRow = vdb.per_row or 12
+	local spacing = E:Scale(vdb.spacing or 2)
+	local growUp = vdb.growth == "UP"
+
+	local icons = module.frameCache[key]
+	if not icons then
+		icons = {}
+		module.frameCache[key] = icons
+	end
+	wipe(icons)
+
+	if demo then
+		for index = 1, #demo do
+			icons[index] = demo[index]
+		end
+	else
+		for frame in viewer.itemFramePool:EnumerateActive() do
+			if frame and frame:IsShown() and frame.layoutIndex then icons[#icons + 1] = frame end
+		end
+		tsort(icons, module.sortFunc)
+	end
+
+	local count = #icons
+	module.emptyViewers[key] = count == 0
+	module:UpdateContainerShown(key)
+
+	local blockWidth, blockHeight = module:MatchedBlock(key, vdb)
+
+	if count == 0 then
+		module:SetContainerSize(container, blockWidth or (perRow * width + (perRow - 1) * spacing), blockHeight or height)
+		module:AnchorToMover(key, vdb.growth)
+		return
+	end
+
+	local cols = min(count, perRow)
+	local rows = ceil(count / perRow)
+	local capped
+	width, height, capped = module:FitIconSize(vdb, width, height, spacing, cols, rows, key)
+
+	for _, icon in ipairs(icons) do
+		icon:SetScale(1)
+
+		if capture or not module.styled[icon] then
+			module:ApplyTextOverrides(icon, vdb, db)
+			module.styled[icon] = key
+			icon.mmtViewerKey = key
+		end
+
+		if callback then callback(icon, vdb, db) end
+
+		module:ApplyDebuffBorder(icon, vdb)
+	end
+
+	-- capped icons do not fill the block, they keep their size and sit in its middle
+	local contentWidth = module:SpreadSlots(cols, width, spacing, not capped and blockWidth, columnSizes, columnStarts)
+	local contentHeight = module:SpreadSlots(rows, height, spacing, not capped and blockHeight, rowSizes, rowStarts)
+	local totalWidth, totalHeight = blockWidth or contentWidth, blockHeight or contentHeight
+	module:SetContainerSize(container, totalWidth, totalHeight)
+	local rowOffset = (totalHeight - contentHeight) / 2
+
+	for index, icon in ipairs(icons) do
+		local row = floor((index - 1) / perRow) + 1
+		local col = (index - 1) % perRow + 1
+		local rowStart = (row - 1) * perRow + 1
+		local rowCount = min(rowStart + perRow - 1, count) - rowStart + 1
+		local offset = (totalWidth - (columnStarts[rowCount] + columnSizes[rowCount])) / 2
+
+		icon:SetSize(columnSizes[col], rowSizes[row])
+		icon:ClearAllPoints()
+		if growUp then
+			icon:SetPoint("BOTTOMLEFT", container, "BOTTOMLEFT", offset + columnStarts[col], rowOffset + rowStarts[row])
+		else
+			icon:SetPoint("TOPLEFT", container, "TOPLEFT", offset + columnStarts[col], -(rowOffset + rowStarts[row]))
+		end
+	end
+
+	module:AnchorToMover(key, vdb.growth)
+end
+
+function module:LayoutContainer(key, capture)
+	if key == "essential" or key == "utility" then
+		module:LayoutCooldownIcons(key, capture)
+	elseif key == "buff_icon" then
+		module:LayoutBuffIcons(capture)
+	elseif key == "buff_bar" then
+		module:LayoutBuffBars(capture)
+	elseif key == "custom" then
+		module:LayoutCustomTracker()
+	end
+end

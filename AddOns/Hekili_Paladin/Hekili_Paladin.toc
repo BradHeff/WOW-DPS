@@ -1,0 +1,16 @@
+## Interface: 16001
+## Version: v0.6.1
+## Title: Hekili Forever - Paladin
+## Author: defzach
+## IconTexture: Interface\AddOns\Hekili\Textures\HekiliForever
+## Notes: Hekili Forever's Paladin: the class kit and its default priorities (provisional), loaded by Hekili Forever for a Paladin. Based on the original work by Hekili.
+## X-Website: https://github.com/zmsl/hekili
+## Dependencies: Hekili, Hekili_Shared
+## Group: Hekili
+## LoadOnDemand: 1
+## X-Hekili-ContentAPI: 11
+
+Locales\enUS.lua
+Locales\zhCN.lua
+
+Paladin.lua

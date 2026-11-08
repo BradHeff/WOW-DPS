@@ -1,0 +1,11 @@
+## Interface: 16001
+## Title: PathForever Camping
+## Notes: Campfire companion for PathForever: lists the camp's objects and your camp buffs. Turn it off here to remove it.
+## IconTexture: Interface\AddOns\PathForever\Media\icon
+## Author: oheyspun
+## Version: 2.2.2
+## X-License: All Rights Reserved
+## Dependencies: PathForever
+## Group: PathForever
+
+Camping.lua

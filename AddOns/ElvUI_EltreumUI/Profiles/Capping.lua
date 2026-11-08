@@ -1,0 +1,49 @@
+local E, L = unpack(ElvUI)
+local _G = _G
+local IsAddOnLoaded = _G.C_AddOns and _G.C_AddOns.IsAddOnLoaded
+local table = _G.table
+local tinsert = table.insert
+
+-- Capping profile setup
+function ElvUI_EltreumUI:GetCappingProfile()
+	if IsAddOnLoaded('Capping') then
+		local CappingSettings = _G.CappingSettings
+		if CappingSettings.profiles.Eltreum then
+			--local key = {[E.mynameRealm] = "Eltreum"}
+			--tinsert(CappingSettings.profileKeys, key)
+			tinsert(CappingSettings.profileKeys, E.mynameRealm)
+			CappingSettings["profileKeys"][E.mynameRealm] = "Eltreum"
+		else
+			CappingSettings["profiles"]["Eltreum"] = {}
+			CappingSettings["profiles"]["Eltreum"] = {
+				["colorBarBackground"] = {
+					nil, -- [1]
+					nil, -- [2]
+					nil, -- [3]
+					0.4000000357627869, -- [4]
+				},
+				["lock"] = true,
+				["spacing"] = 1,
+				["barOnShift"] = "INSTANCE_CHAT",
+				["barTexture"] = "ElvUI Norm1",
+				["width"] = 400,
+				["font"] = E.db.general.font,
+				["outline"] = ElvUI_EltreumUI:FontFlag(E.db.general.fontStyle),
+				["barOnControl"] = "SAY",
+				["height"] = 16,
+				["position"] = {
+					"BOTTOMRIGHT", -- [1]
+					"BOTTOMRIGHT", -- [2]
+					-109.2361068725586, -- [3]
+					218.9607849121094, -- [4]
+				},
+				["growUp"] = true,
+			}
+			CappingSettings["profileKeys"][E.mynameRealm] = "Eltreum"
+		end
+
+		ElvUI_EltreumUI:Print(L["Capping profile has been set."])
+	else
+		ElvUI_EltreumUI:Print(L["Capping is not loaded"])
+	end
+end

@@ -1,0 +1,233 @@
+local E = unpack(ElvUI)
+local _G = _G
+local GetCVar = _G.C_CVar and _G.C_CVar.GetCVar or _G.GetCVar
+local CreateFrame = _G.CreateFrame
+local UnitIsAFK = _G.UnitIsAFK
+local SetCVar = _G.C_CVar and _G.C_CVar.SetCVar or _G.SetCVar
+local PlayMusic = _G.PlayMusic
+local StopMusic = _G.StopMusic
+local tonumber = _G.tonumber
+
+-- general alliance walk (legion) maybe human music idk
+--/script PlaySoundFile(1417250, "Dialog", true)
+
+-- AFK music (modified with the help of Repooc!)
+local classicMusic = E.Classic or E.Forever or E.TBC or E.Wrath
+local racialMusic = {
+	["Human"] = 53210,
+	["Gnome"] = E.Modern and 369055 or 53189,--forever has this
+	["NightElf"] = classicMusic and 53187 or 441709,
+	["KulTiran"] = 1781897,
+	["Dwarf"] = classicMusic and 53192 or 298910,
+	["Draenei"] = 53284,
+	["Worgen"] = 441525,
+	["VoidElf"] = 1864282,
+	["LightforgedDraenei"] = 1864285,
+	["DarkIronDwarf"] = 441566,
+	["Mechagnome"] = 3028751,
+	["Orc"] = classicMusic and 53201 or 441713,
+	["Scourge"] = E.Modern and 53217 or 53519, --forever has this
+	["Tauren"] = classicMusic and 53215 or 441788,
+	["Troll"] = E.Modern and 371378 or 53254, --forever has this
+	["Goblin"] = 441627,
+	["BloodElf"] = 53473,
+	["Pandaren"] = 642246,
+	["Nightborne"] = 1477339,
+	["HighmountainTauren"] = 1417319,
+	["ZandalariTroll"] = 2844635,
+	["Vulpera"] = 3260632,
+	["MagharOrc"] = 2146630,
+	["Dracthyr"] = 4880311, --4872480, --use the forbidden reach which is more drachtyr
+	["EarthenDwarf"] = 6065661, --6065451, --6065451 is inn music, use more combat themed
+	["Harronir"] = 7692166, --haranir
+	["Skyborne"] = 8246686, --forever
+}
+local classMusic = {
+	["WARRIOR"] = 1417334, --exists in forever
+	["PALADIN"] = 1417342, --443289
+	["HUNTER"] = 1417326,
+	["ROGUE"] = 1417273,
+	["PRIEST"] = 1417367,
+	["DEATHKNIGHT"] = 229831, --works in cata
+	--/script PlaySound(14960)
+	["SHAMAN"] = 528163,
+	["MAGE"] = 1417264,
+	["WARLOCK"] = 1417356, --exists in forever
+	["MONK"] = 642138, --exists in forever
+	["DRUID"] = 1417312,
+	["DEMONHUNTER"] = 1417290, --exists in forever
+	["EVOKER"] = 4887975, --test
+}
+
+-- with the help of Repooc, Simpy and Acidweb (not in order :D)
+local musicSettingLoadingIn = GetCVar('Sound_EnableMusic')
+local musicSetting = musicSettingLoadingIn
+function ElvUI_EltreumUI:AFKmusic()
+	if E.db.ElvUI_EltreumUI.otherstuff.afkmusic.enable then
+		if ElvUI_EltreumUI:IsThisASafeSecret(UnitIsAFK("player"),true) and UnitIsAFK("player") then --huh
+			musicSetting = tonumber(GetCVar('Sound_EnableMusic'))
+			SetCVar("Sound_EnableMusic", 1)
+			if E.Retail then
+				if E.db.ElvUI_EltreumUI.otherstuff.afkmusic.racial then
+					PlayMusic(racialMusic[E.myrace])
+				elseif E.db.ElvUI_EltreumUI.otherstuff.afkmusic.playerclass then
+					PlayMusic(classMusic[E.myclass])
+				end
+			else
+				PlayMusic(racialMusic[E.myrace])
+			end
+		else
+			StopMusic()
+			if musicSettingLoadingIn ~= musicSetting then
+				SetCVar("Sound_EnableMusic", musicSetting)
+			end
+		end
+	end
+end
+
+local isPreviewingAFK = false
+function ElvUI_EltreumUI:PreviewAFKMusic()
+	if not isPreviewingAFK then
+		if E.Retail then
+			if E.db.ElvUI_EltreumUI.otherstuff.afkmusic.racial and racialMusic[E.myrace] then
+				PlayMusic(racialMusic[E.myrace])
+				isPreviewingAFK = true
+			elseif E.db.ElvUI_EltreumUI.otherstuff.afkmusic.playerclass and classMusic[E.myclass] then
+				PlayMusic(classMusic[E.myclass])
+				isPreviewingAFK = true
+			end
+		else
+			if racialMusic[E.myrace] then
+				PlayMusic(racialMusic[E.myrace])
+				isPreviewingAFK = true
+			end
+		end
+	else
+		StopMusic()
+		isPreviewingAFK = false
+	end
+end
+
+--add Eltruism logo to elvui afk screen
+local EltruismAFKLogoTexture = _G.ElvUIAFKFrame:CreateTexture()
+local EltruismAFKVignette = CreateFrame("Frame", "EltruismAFKVignette", E.UIParent)
+local EltruismAFKVignetteTexture = EltruismAFKVignette:CreateTexture()
+local EltruismAFKClassTexture = _G.ElvUIAFKFrame.bottom:CreateTexture()
+local ClassCrestFrameTexture = _G.ElvUIAFKFrame:CreateTexture("EltruismClassCrestAFK")
+
+local classIcons = {
+	["WARRIOR"] = "Interface/Addons/ElvUI_EltreumUI/Media/Textures/Classes/128/WarriorShadow",
+	["PALADIN"] = "Interface/Addons/ElvUI_EltreumUI/Media/Textures/Classes/128/PaladinShadow",
+	["HUNTER"] = "Interface/Addons/ElvUI_EltreumUI/Media/Textures/Classes/128/HunterShadow",
+	["ROGUE"] = "Interface/Addons/ElvUI_EltreumUI/Media/Textures/Classes/128/RogueShadow",
+	["PRIEST"] = "Interface/Addons/ElvUI_EltreumUI/Media/Textures/Classes/128/PriestShadow",
+	["DEATHKNIGHT"] = "Interface/Addons/ElvUI_EltreumUI/Media/Textures/Classes/128/DeathKnightShadow",
+	["SHAMAN"] = "Interface/Addons/ElvUI_EltreumUI/Media/Textures/Classes/128/ShamanShadow",
+	["MAGE"] = "Interface/Addons/ElvUI_EltreumUI/Media/Textures/Classes/128/MageShadow",
+	["WARLOCK"] = "Interface/Addons/ElvUI_EltreumUI/Media/Textures/Classes/128/WarlockShadow",
+	["MONK"] = "Interface/Addons/ElvUI_EltreumUI/Media/Textures/Classes/128/MonkShadow",
+	["DRUID"] = "Interface/Addons/ElvUI_EltreumUI/Media/Textures/Classes/128/DruidShadow",
+	["DEMONHUNTER"] = "Interface/Addons/ElvUI_EltreumUI/Media/Textures/Classes/128/DemonHunterShadow",
+	["EVOKER"] = "Interface/Addons/ElvUI_EltreumUI/Media/Textures/Classes/128/EvokerShadow",
+}
+
+function ElvUI_EltreumUI:AFKLogo()
+	if E.db.general.afk and E.db.ElvUI_EltreumUI.otherstuff.afklogo then
+
+		--add shadows
+		if _G.ElvUIAFKFrame and _G.ElvUIAFKFrame.bottom and not _G.ElvUIAFKFrame.bottom.shadow and not E.db.ElvUI_EltreumUI.borders.universalborders then
+			_G.ElvUIAFKFrame.bottom:CreateShadow(E.db.ElvUI_EltreumUI.skins.shadow.length)
+			ElvUI_EltreumUI:ShadowColor(_G.ElvUIAFKFrame.bottom.shadow)
+		end
+
+		--vignette/overlay
+		EltruismAFKVignette:SetSize(E.screenWidth,E.screenHeight)
+		EltruismAFKVignette:SetAllPoints(_G.ElvUIAFKFrame)
+		EltruismAFKVignette:SetParent(_G.ElvUIAFKFrame)
+		EltruismAFKVignette:SetFrameStrata("BACKGROUND")
+		EltruismAFKVignetteTexture:SetTexture("Interface\\Addons\\ElvUI_EltreumUI\\Media\\Textures\\StealthOverlay.tga")
+		EltruismAFKVignetteTexture:SetAllPoints(EltruismAFKVignette)
+		if UnitIsAFK("player") then
+			EltruismAFKVignette:Show()
+		else
+			EltruismAFKVignette:Hide()
+		end
+
+		--crest
+		if E.db.ElvUI_EltreumUI.skins.expandarmorycrest then
+			if E.db.ElvUI_EltreumUI.skins.armorycrestversion == 1 then
+				if E.myclass == "EVOKER" then
+					ClassCrestFrameTexture:SetTexture(ElvUI_EltreumUI:GetClassCrest())
+				else
+					ClassCrestFrameTexture:SetAtlas(ElvUI_EltreumUI:GetClassCrest(), true)
+				end
+			else
+				ClassCrestFrameTexture:SetAlpha(0.85)
+				ClassCrestFrameTexture:SetTexture(ElvUI_EltreumUI:GetClassCrest())
+			end
+		else
+			ClassCrestFrameTexture:SetAlpha(0.85)
+			ClassCrestFrameTexture:SetTexture(ElvUI_EltreumUI:GetClassCrest())
+		end
+		ClassCrestFrameTexture:Point('RIGHT', _G.ElvUIAFKFrame.bottom, 'RIGHT', -80, 0)
+		ClassCrestFrameTexture:Size(E.screenHeight * 0.05, E.screenHeight * 0.05)
+
+		--bottom frame
+		_G.ElvUIAFKFrame.bottom:SetWidth(E.screenWidth/1.75)
+		_G.ElvUIAFKFrame.bottom:SetHeight(E.screenHeight * 0.05)
+		_G.ElvUIAFKFrame.bottom:SetPoint("BOTTOM", _G.ElvUIAFKFrame, "BOTTOM", 0 , 50)
+
+		--elvui logo
+		_G.ElvUIAFKFrame.bottom.LogoTop:SetTexture(nil)
+		_G.ElvUIAFKFrame.bottom.LogoBottom:SetTexture("Interface\\Addons\\ElvUI_EltreumUI\\Media\\Textures\\elvui.tga")
+		_G.ElvUIAFKFrame.bottom.LogoBottom:SetGradient("HORIZONTAL", ElvUI_EltreumUI:GradientColors(E.myclass, false, false))
+		_G.ElvUIAFKFrame.bottom.LogoBottom:SetSize(E.screenHeight * 0.1, E.screenHeight * 0.05)
+		_G.ElvUIAFKFrame.bottom.LogoBottom:ClearAllPoints()
+		_G.ElvUIAFKFrame.bottom.LogoBottom:Point('RIGHT', _G.ElvUIAFKFrame.bottom,'CENTER', -10, 0)
+
+		--eltruism logo
+		if E.db.ElvUI_EltreumUI.otherstuff.afklogoeltruism then
+			EltruismAFKLogoTexture:SetTexture("Interface\\AddOns\\ElvUI_EltreumUI\\Media\\Textures\\logohqbw")
+			EltruismAFKLogoTexture:SetSize(E.screenHeight * 0.2, E.screenHeight * 0.05)
+			EltruismAFKLogoTexture:SetPoint("CENTER", _G.ElvUIAFKFrame.bottom)
+			EltruismAFKLogoTexture:SetGradient("HORIZONTAL", ElvUI_EltreumUI:GradientColors("ELTRUISM", false, false))
+			EltruismAFKLogoTexture:Point('LEFT', _G.ElvUIAFKFrame.bottom,'CENTER', 10, 0)
+		end
+
+		--model, delay because it gets set again
+		--[[E:Delay(0,function()
+			_G.ElvUIAFKFrame.bottom.modelHolder:ClearAllPoints()
+			_G.ElvUIAFKFrame.bottom.modelHolder:SetPoint("BOTTOMRIGHT", _G.ElvUIAFKFrame.bottom, "BOTTOMRIGHT", 50, 220)
+			_G.ElvUIAFKFrame.bottom.model:SetScale(0.9)
+		end)]]
+
+		--time
+		_G.ElvUIAFKFrame.bottom.time:ClearAllPoints()
+		_G.ElvUIAFKFrame.bottom.time:Point('RIGHT', _G.ElvUIAFKFrame.bottom, 'RIGHT', -10, 0)
+
+		--class icon
+		_G.ElvUIAFKFrame.bottom.faction:SetTexture(nil)
+		EltruismAFKClassTexture:Point('LEFT', _G.ElvUIAFKFrame.bottom, 'LEFT', 0, 0)
+		EltruismAFKClassTexture:Size(E.screenHeight * 0.05, E.screenHeight * 0.05)
+		EltruismAFKClassTexture:SetTexture(classIcons[E.myclass])
+
+		--name
+		if E.Forever then
+			local name,surname = _G.UnitName("player")
+			_G.ElvUIAFKFrame.bottom.name:SetText(ElvUI_EltreumUI:GradientName(name.." "..surname, E.myclass))
+		else
+			_G.ElvUIAFKFrame.bottom.name:SetText(ElvUI_EltreumUI:GradientName(E.myname, E.myclass))
+		end
+
+		_G.ElvUIAFKFrame.bottom.name:ClearAllPoints()
+		_G.ElvUIAFKFrame.bottom.name:Point('TOPLEFT', EltruismAFKClassTexture, 'TOPRIGHT', 10, -2)
+
+		--remove the rank from guild text
+		if _G.IsInGuild() then
+			E:Delay(0, function()
+				local guildName = _G.GetGuildInfo('player')
+				_G.ElvUIAFKFrame.bottom.guild:SetText(guildName)
+			end)
+		end
+	end
+end

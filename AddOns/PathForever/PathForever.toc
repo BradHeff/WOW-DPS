@@ -1,0 +1,34 @@
+## Interface: 16001
+## Title: PathForever
+## Notes: Leveling journey, dungeon journal and quality-of-life companion for World of Warcraft: Forever.
+## IconTexture: Interface\AddOns\PathForever\Media\icon
+## Author: oheyspun
+## Version: 2.2.2
+## X-License: All Rights Reserved
+## X-Curse-Project-ID: 1718161
+## X-Wago-ID: 56nbbm69
+## SavedVariables: PathForeverDB
+
+Data.lua
+RaidData.lua
+ReputationData.lua
+JourneyData.lua
+EntranceData.lua
+Core.lua
+UI.lua
+Journey.lua
+Sidebar.lua
+Reputations.lua
+PvP.lua
+Popouts.lua
+Upgrades.lua
+Bank.lua
+History.lua
+Tracker.lua
+Spotter.lua
+LibraryMap.lua
+EntranceMap.lua
+FlightMap.lua
+Minimap.lua
+Dock.lua
+Tour.lua

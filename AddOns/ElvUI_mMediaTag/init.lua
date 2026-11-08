@@ -1,0 +1,132 @@
+local E, _, _, P = unpack(ElvUI)
+local EP = E.Libs.EP
+
+-- Cache WoW Globals
+local _G = _G
+local format = format
+local strfind = strfind
+local GetAddOnMetadata = _G.C_AddOns and _G.C_AddOns.GetAddOnMetadata or _G.GetAddOnMetadata
+local IsAddOnLoaded = _G.C_AddOns and _G.C_AddOns.IsAddOnLoaded or IsAddOnLoaded
+local C_Timer_After = C_Timer.After
+
+local addonName, Engine = ...
+local mMT = E:NewModule("mMediaTag", "AceHook-3.0", "AceEvent-3.0", "AceTimer-3.0", "AceConsole-3.0")
+
+P.mMediaTag = {}
+
+Engine[1] = mMT -- Addon
+Engine[2] = {} -- db
+Engine[3] = {} -- modules
+Engine[4] = E -- ElvUI
+Engine[5] = P.mMediaTag -- ElvUI plugin defaults
+Engine[6] = LibStub("AceLocale-3.0"):GetLocale("mMediaTag") -- Locales
+Engine[7] = {} -- Media
+_G[addonName] = Engine
+
+mMT.Version = GetAddOnMetadata(addonName, "Version")
+mMT.Name = "|CFF0294FFm|r|CFFBD26E5Media|r|CFFFF005DTag|r |CFF404040&|r  |CFFFF9D00Tools|r"
+mMT.NameShort = "|CFF0294FFm|r|CFFBD26E5Media|r|CFFFF005DTag|r"
+mMT.IDs = {}
+mMT.defaults = {}
+mMT.Changelog = {}
+
+-- game features per WoW version, decided by ElvUI's flags only; must match the [AllowLoadGameType] lines in the toc
+mMT.Supports = {
+	mythicplus = E.Retail,
+	housing = E.Retail,
+	cooldownmanager = E.Modern,
+	objectivetracker = E.Modern,
+	importantcasts = E.Retail,
+	preyhunt = E.Retail,
+	buffreminder = E.Retail,
+	lfglist = E.Retail,
+	teleports = E.Retail,
+	premadegroupsfilter = E.Retail,
+	achievements = not (E.TBC or E.Classic),
+	collections = not (E.TBC or E.Classic),
+	encounterjournal = not (E.TBC or E.Classic or E.Forever),
+	questunits = not (E.TBC or E.Classic),
+	focus = not E.Classic,
+}
+
+function mMT:InsertOptions()
+	E.Options.name = format("%s + %s %s |cff99ff33%s|r", E.Options.name, Engine[7].icon16, mMT.NameShort, mMT.Version)
+	mMT:FinalizeOptions()
+	E.Options.args.mMT = mMT.options
+end
+
+function mMT:UpdateAll()
+	mMT:MigrateProfile()
+
+	for name, module in pairs(Engine[3]) do
+		if module.Initialize then
+			local ok, err = pcall(module.Initialize, module)
+			if not ok then geterrorhandler()(format("mMediaTag - module '%s' failed to initialize:\n%s", name, err)) end
+		end
+	end
+end
+
+local function DelayedUpdateAll()
+	E:Delay(0.1, mMT.UpdateAll, mMT)
+end
+
+-- on a profile switch events and hooks fire before the delayed mMT:UpdateAll, the old profile has lost its defaults by then
+local profileCallbacks = {}
+
+function mMT:OnProfileSwitch(func)
+	profileCallbacks[func] = true
+end
+
+local function ProfileSwitched()
+	for func in pairs(profileCallbacks) do
+		func()
+	end
+end
+
+function mMT:Initialize()
+	mMT:RegisterEvent("PLAYER_LOGOUT")
+
+	EP:RegisterPlugin(addonName, mMT.InsertOptions)
+
+	E:CopyTable(Engine[2], mMT.defaults)
+	Engine[2] = E:CopyTable(Engine[2], MMTDATA)
+	mMT:UpdateDeveloperState()
+
+	-- older versions learned every level -1 mob as boss
+	if (Engine[2].boss_ids_version or 0) < 1 then
+		Engine[2].boss_ids = {}
+		Engine[2].boss_ids_version = 1
+	end
+
+	if mMT:GetWeeklyResetTime() then Engine[2].keystones = {} end
+
+	if not mMT.ElvUI_Hooked then
+		mMT:SecureHook(E, "UpdateStart", ProfileSwitched)
+		mMT:SecureHook(E, "UpdateEnd", DelayedUpdateAll)
+		mMT.ElvUI_Hooked = true
+	end
+
+	mMT:UpdateMedia()
+
+	if IsAddOnLoaded("JiberishIcons") or IsAddOnLoaded("ElvUI_JiberishIcons") then mMT:AddJIIcons() end
+	if IsAddOnLoaded("Details") then mMT:AddClassIconsToDetails() end
+
+	if Engine[2].DEV then E:Print(format("%s %s", mMT.NameShort, "|cff99ff33DEV mode active|r")) end
+
+	mMT:UpdateAll()
+
+	tinsert(E.ConfigModeLayouts, "MMEDIATAG")
+	E.ConfigModeLocalizedStrings["MMEDIATAG"] = mMT.Name
+
+	local lastVersion = Engine[2].changelog_version or E.db.mMediaTag.version
+	if lastVersion ~= mMT.Version and not strfind(mMT.Version, "-dev", 1, true) then C_Timer_After(2, function()
+		E:ToggleOptions("mMT,changelog")
+		Engine[2].changelog_version = mMT.Version
+	end) end
+end
+
+function mMT:PLAYER_LOGOUT()
+	MMTDATA = Engine[2]
+end
+
+E:RegisterModule(mMT:GetName())

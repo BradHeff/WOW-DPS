@@ -1,0 +1,17 @@
+PathForever
+Copyright (c) 2026 oheyspun. All rights reserved.
+
+You may download PathForever from its official pages (CurseForge and Wago) and
+use it in World of Warcraft for your own play.
+
+You may not, without written permission from the author:
+  - redistribute or re-upload PathForever, in whole or in part, anywhere else;
+  - publish modified versions of it;
+  - use its code or data in another project.
+
+PathForever is provided "as is", without warranty of any kind. The author is not
+liable for any claim, damages or other liability arising from its use.
+
+World of Warcraft and Blizzard Entertainment are trademarks or registered
+trademarks of Blizzard Entertainment, Inc. PathForever is not affiliated with
+or endorsed by Blizzard Entertainment.

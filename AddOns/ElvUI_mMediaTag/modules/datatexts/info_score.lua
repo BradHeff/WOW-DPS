@@ -1,0 +1,395 @@
+local mMT, DB, M, E, P, L, MEDIA = unpack(ElvUI_mMediaTag)
+
+local DT = E:GetModule("DataTexts")
+local LOR = LibStub("LibOpenRaid-1.0", true)
+
+-- Cache WoW Globals
+local GetMapUIInfo = C_ChallengeMode.GetMapUIInfo
+local GetMapTable = C_ChallengeMode.GetMapTable
+local GetOwnedKeystoneChallengeMapID = C_MythicPlus.GetOwnedKeystoneChallengeMapID
+local C_MythicPlus_RequestCurrentAffixes = C_MythicPlus.RequestCurrentAffixes
+local GetDungeonScoreRarityColor = C_ChallengeMode.GetDungeonScoreRarityColor
+local GetPlayerMythicPlusRatingSummary = C_PlayerInfo.GetPlayerMythicPlusRatingSummary
+local GetSpecificDungeonOverallScoreRarityColor = C_ChallengeMode.GetSpecificDungeonOverallScoreRarityColor
+local C_MythicPlus_RequestMapInfo = C_MythicPlus.RequestMapInfo
+local GetKeystoneLevelRarityColor = C_ChallengeMode.GetKeystoneLevelRarityColor
+local GetActiveChallengeMapID = C_ChallengeMode.GetActiveChallengeMapID
+local GetInstanceInfo = GetInstanceInfo
+local IsInInstance = IsInInstance
+local UnitName = UnitName
+local InCombatLockdown = InCombatLockdown
+local IsInGroup = IsInGroup
+local GetNumGroupMembers = GetNumGroupMembers
+local UnitIsPlayer = UnitIsPlayer
+local UnitIsGroupLeader = UnitIsGroupLeader
+local format = format
+local floor = math.floor
+local ipairs = ipairs
+local pairs = pairs
+local select = select
+local sort = table.sort
+local strjoin = strjoin
+
+local COLOR_GRAY_HEX = "FFA9A9A9"
+local COLOR_ILEVEL_HEX = "FFAB5CFE"
+
+local valueString = ""
+local textString = ""
+local isMaxLevel = nil
+local leaderIcon = E:TextureString(MEDIA.icons.leader.leader01, ":14:14")
+local armorIcon = E:TextureString(MEDIA.icons.datatexts.misc.armor, ":14:14")
+local scoreIcon = E:TextureString(MEDIA.icons.datatexts.misc.score, ":14:14")
+-- Texel and vertex color arguments are only read when the whole chain is given; the tag icons are 64x64.
+local currentIcon = format("|T%s:14:14:0:0:64:64:0:64:0:64:%d:%d:%d|t", MEDIA.icons.tags.pin, floor(MEDIA.myclass.r * 255), floor(MEDIA.myclass.g * 255), floor(MEDIA.myclass.b * 255))
+
+local function FormatRatingColor(rating)
+	local color = GetDungeonScoreRarityColor(rating)
+	return color and color:GenerateHexColor() or "FFFFFFFF"
+end
+
+local function SaveMyKeystone()
+	DB.keystones = DB.keystones or {}
+
+	local myKeystone = mMT:GetMyKeystone()
+	DB.keystones[E.mynameRealm] = myKeystone and {
+		name = format(MEDIA.myclass.string, E.mynameRealm),
+		key = myKeystone,
+	} or nil
+end
+
+local function UnitClassColor(unit)
+	if E:IsSecretUnit(unit) then return "|cffffffff" end
+
+	local _, unitClass = UnitClass(unit)
+	local classColor = E.oUF.colors.class[unitClass]
+	return classColor and E:RGBToHex(classColor.r, classColor.g, classColor.b) or "|cffffffff"
+end
+
+local function GetKeystoneString(id, keyStoneLevel)
+	if not id then return end
+	local name = GetMapUIInfo(id)
+	if not name then return end
+
+	local color = ITEM_QUALITY_COLORS[4]
+	local colorKey = GetKeystoneLevelRarityColor(keyStoneLevel)
+	local keyHex = colorKey and colorKey:GenerateHexColor() or "FFFFFFFF"
+
+	return color.hex .. name .. " " .. format("|c%s+%s|r", keyHex, keyStoneLevel) .. "|r", id
+end
+
+local function SortDungeons(a, b)
+	if E.db.mMediaTag.datatexts.score.sort_method == "SCORE" then
+		if a.mapScore ~= b.mapScore then return a.mapScore > b.mapScore end
+	elseif a.bestRunLevel ~= b.bestRunLevel then
+		return a.bestRunLevel > b.bestRunLevel
+	end
+
+	return a.mapName < b.mapName
+end
+
+local function SortUpgrades(a, b)
+	if a.mapScore ~= b.mapScore then return a.mapScore < b.mapScore end
+
+	return a.mapName < b.mapName
+end
+
+-- GetMapUIInfo 6th return (11.2.0) is the instance mapID, the same value GetInstanceInfo reports as instanceID.
+local function GetCurrentChallengeMapID(mapTable)
+	local activeID = GetActiveChallengeMapID()
+	if activeID then return activeID end
+
+	if not IsInInstance() then return end
+
+	local instanceID = select(8, GetInstanceInfo())
+	if not instanceID then return end
+
+	for _, id in ipairs(mapTable) do
+		local _, _, _, _, _, mapID = GetMapUIInfo(id)
+		if mapID == instanceID then return id end
+	end
+end
+
+local function GetDungeonSummary()
+	local scoreTable, mapIndex = {}, {}
+	local mapTable = GetMapTable()
+	local summary = GetPlayerMythicPlusRatingSummary("player")
+	local myKeystoneMapID = GetOwnedKeystoneChallengeMapID()
+	local currentMapID = GetCurrentChallengeMapID(mapTable)
+
+	for _, id in ipairs(mapTable) do
+		local name, _, _, texture = GetMapUIInfo(id)
+		scoreTable[#scoreTable + 1] = {
+			mapName = name or UNKNOWN,
+			bestRunLevel = 0,
+			levelColor = MEDIA.color.gray,
+			mapScore = 0,
+			scoreColor = MEDIA.color.gray,
+			icon = E:TextureString(texture, ":14:14"),
+			finishedSuccess = false,
+			isMyKeystone = (id == myKeystoneMapID),
+			isCurrentDungeon = (id == currentMapID),
+		}
+		mapIndex[id] = #scoreTable
+	end
+
+	if summary and summary.runs then
+		for _, v in ipairs(summary.runs) do
+			local name, _, _, texture = GetMapUIInfo(v.challengeModeID)
+			local info = {
+				mapName = name or UNKNOWN,
+				bestRunLevel = v.bestRunLevel,
+				levelColor = GetKeystoneLevelRarityColor(v.bestRunLevel),
+				mapScore = v.mapScore,
+				scoreColor = GetSpecificDungeonOverallScoreRarityColor(v.mapScore) or HIGHLIGHT_FONT_COLOR,
+				icon = E:TextureString(texture, ":14:14"),
+				finishedSuccess = v.finishedSuccess,
+				isMyKeystone = (v.challengeModeID == myKeystoneMapID),
+				isCurrentDungeon = (v.challengeModeID == currentMapID),
+			}
+
+			local index = mapIndex[v.challengeModeID]
+			if index then
+				scoreTable[index] = info
+			else
+				scoreTable[#scoreTable + 1] = info
+				mapIndex[v.challengeModeID] = #scoreTable
+			end
+		end
+	end
+
+	sort(scoreTable, SortDungeons)
+
+	return scoreTable
+end
+
+local function AddTooltipLine(v, mapName)
+	local ratingHex = v.finishedSuccess and v.scoreColor:GenerateHexColor() or COLOR_GRAY_HEX
+	local levelHex = v.finishedSuccess and v.levelColor:GenerateHexColor() or COLOR_GRAY_HEX
+
+	local rating = format("|c%s%s|r", ratingHex, v.mapScore)
+	local level = format("|c%s+%s|r", levelHex, v.bestRunLevel)
+	local marker = v.isCurrentDungeon and " " .. currentIcon or ""
+
+	DT.tooltip:AddDoubleLine(v.icon .. " " .. mapName .. marker, rating .. " (" .. level .. ")", mMT:GetRGB("text", "text"))
+end
+
+local function DungeonScoreTooltip(scoreTable)
+	if not next(scoreTable) then return end
+
+	DT.tooltip:AddLine(" ")
+	DT.tooltip:AddLine(L["Dungeon overview:"], mMT:GetRGB("title"))
+
+	for _, v in ipairs(scoreTable) do
+		local mapName = v.isMyKeystone and mMT:TC(v.mapName, "mark") or v.mapName
+		AddTooltipLine(v, mapName)
+	end
+
+	if not E.db.mMediaTag.datatexts.score.show_upgrade then return end
+
+	DT.tooltip:AddLine(" ")
+	DT.tooltip:AddLine(L["Possible next upgrades:"], mMT:GetRGB("title"))
+
+	local upgradeTable = {}
+	for _, data in ipairs(scoreTable) do
+		upgradeTable[#upgradeTable + 1] = data
+	end
+	sort(upgradeTable, SortUpgrades)
+
+	for i = 1, math.min(2, #upgradeTable) do
+		local v = upgradeTable[i]
+		local mapName = v.isMyKeystone and mMT:TC(v.mapName, "mark") or v.mapName
+		AddTooltipLine(v, mapName)
+	end
+end
+
+local function OnClick(self, button)
+	if button == "LeftButton" or button == "MiddleButton" then
+		_G.ToggleLFDParentFrame()
+		if button == "MiddleButton" then _G.PVEFrameTab3:Click() end
+	elseif IsShiftKeyDown() then
+		DB.keystones = {}
+	else
+		mMT:OpenGroupFinderMenu(self)
+	end
+end
+
+local function FormatUnitInfo(unit, unitName, keystoneInfo, unitGear)
+	local isLeader = E:NotSecretUnit(unit) and UnitIsGroupLeader(unit)
+	local iLevelStr = ""
+	if unitGear and unitGear.ilevel then iLevelStr = "   " .. armorIcon .. " " .. format("|c%s%s|r", COLOR_ILEVEL_HEX, unitGear.ilevel) end
+
+	if keystoneInfo then
+		local ratingHex = FormatRatingColor(keystoneInfo.rating)
+		local unitRating = format("|c%s%s|r", ratingHex, keystoneInfo.rating)
+		return (isLeader and leaderIcon .. " " or "") .. unitName .. "   " .. scoreIcon .. " " .. unitRating .. iLevelStr
+	end
+
+	return (isLeader and leaderIcon or "") .. unitName .. iLevelStr
+end
+
+local function AddFallbackGroupLine(unit)
+	local ratingInfo = GetPlayerMythicPlusRatingSummary(unit)
+	local unitRating = ratingInfo and ratingInfo.currentSeasonScore or 0
+	local ratingHex = FormatRatingColor(unitRating)
+	local unitName = format("%s%s|r", UnitClassColor(unit), UnitName(unit))
+
+	local bestRun = 0
+	if ratingInfo and ratingInfo.runs then
+		for _, run in next, ratingInfo.runs do
+			if run.finishedSuccess and run.bestRunLevel > bestRun then bestRun = run.bestRunLevel end
+		end
+	end
+
+	local bestRunStr = (bestRun > 0) and format("|c%s%s|r", ratingHex, L["Mythic+ Best Run: +"] .. bestRun) or ""
+
+	DT.tooltip:AddDoubleLine((E:NotSecretUnit(unit) and UnitIsGroupLeader(unit) and leaderIcon or "") .. unitName .. "   " .. scoreIcon .. " " .. format("|c%s%s|r", ratingHex, unitRating), bestRunStr)
+end
+
+local function GetGroupKeystone()
+	local GroupMembers = { "player" }
+	for i = 1, GetNumGroupMembers() - 1 do
+		GroupMembers[#GroupMembers + 1] = "party" .. i
+	end
+
+	if LOR then
+		LOR.RequestKeystoneDataFromParty()
+		LOR.GetAllUnitsGear()
+
+		for _, unit in ipairs(GroupMembers) do
+			if unit and UnitIsPlayer(unit) then
+				local keystoneInfo = LOR.GetKeystoneInfo(unit)
+				local unitGear = LOR.GetUnitGear(unit)
+
+				if not keystoneInfo and not (unitGear and unitGear.ilevel) then
+					AddFallbackGroupLine(unit)
+				else
+					local unitName = format("%s%s|r", UnitClassColor(unit), UnitName(unit))
+					local key = L["No Keystone"]
+
+					local info = FormatUnitInfo(unit, unitName, keystoneInfo, unitGear)
+
+					if keystoneInfo then
+						local membersKeystone = GetKeystoneString(keystoneInfo.challengeMapID, keystoneInfo.level)
+						if membersKeystone then key = membersKeystone end
+					end
+
+					DT.tooltip:AddDoubleLine(info, key)
+				end
+			end
+		end
+	else
+		for _, unit in ipairs(GroupMembers) do
+			if unit and UnitIsPlayer(unit) then AddFallbackGroupLine(unit) end
+		end
+	end
+end
+
+local function OnEnter(self)
+	isMaxLevel = isMaxLevel or E:XPIsLevelMax()
+	local inCombat = InCombatLockdown()
+	DT.tooltip:ClearLines()
+
+	if not isMaxLevel then self.text:SetFormattedText(textString, L["Level: "] .. format(valueString, E.mylevel)) end
+
+	if not inCombat then
+		if isMaxLevel then
+			SaveMyKeystone()
+			local myScore = mMT:GetMyMythicPlusScore()
+			local myKeystone = mMT:GetMyKeystone()
+
+			DT.tooltip:AddLine(L["My Info"], mMT:GetRGB("title"))
+			DT.tooltip:AddDoubleLine(DUNGEON_SCORE, myScore, mMT:GetRGB("text", "text"))
+			DT.tooltip:AddDoubleLine(L["Keystone"], myKeystone, mMT:GetRGB("text", "text"))
+			self.text:SetText(myScore)
+		end
+
+		if DB.keystones and next(DB.keystones) then
+			DT.tooltip:AddLine(" ")
+			DT.tooltip:AddLine(L["Keystones on your Account"], mMT:GetRGB("title"))
+			for _, characters in pairs(DB.keystones) do
+				DT.tooltip:AddDoubleLine(characters.name, characters.key)
+			end
+		end
+
+		if E.db.mMediaTag.datatexts.score.group_keystones and IsInGroup() and isMaxLevel then
+			DT.tooltip:AddLine(" ")
+			DT.tooltip:AddLine(L["Keystones in your Group"], mMT:GetRGB("title"))
+			GetGroupKeystone()
+		end
+	end
+
+	local weeklyAffixes = mMT:GetWeeklyAffixes()
+	if weeklyAffixes then
+		DT.tooltip:AddLine(" ")
+		DT.tooltip:AddLine(L["This Week Affix"], mMT:GetRGB("title"))
+		DT.tooltip:AddLine(weeklyAffixes, mMT:GetRGB("text"))
+	end
+
+	if isMaxLevel then
+		local scoreTable = GetDungeonSummary()
+		DungeonScoreTooltip(scoreTable)
+
+		local vaultInfoRaid, vaultInfoDungeons, vaultInfoWorld = mMT:GetVaultInfo()
+		if vaultInfoRaid and vaultInfoDungeons and vaultInfoWorld then
+			DT.tooltip:AddLine(" ")
+			DT.tooltip:AddLine(GREAT_VAULT_REWARDS, mMT:GetRGB("title"))
+			DT.tooltip:AddDoubleLine(RAID, vaultInfoRaid, mMT:GetRGB("text", "text"))
+			DT.tooltip:AddDoubleLine(DUNGEONS, vaultInfoDungeons, mMT:GetRGB("text", "text"))
+			DT.tooltip:AddDoubleLine(WORLD, vaultInfoWorld, mMT:GetRGB("text", "text"))
+		end
+	end
+
+	DT.tooltip:AddLine(" ")
+	DT.tooltip:AddLine(MEDIA.leftClick .. " " .. L["left click to open LFD Frame"], mMT:GetRGB("tip"))
+	DT.tooltip:AddLine(MEDIA.middleClick .. " " .. L["middle click to open M+ Frame"], mMT:GetRGB("tip"))
+	DT.tooltip:AddLine(MEDIA.rightClick .. " " .. L["right click to open the menu."], mMT:GetRGB("tip"))
+	DT.tooltip:AddLine(MEDIA.rightClick .. " " .. L["SHIFT + right click to clear all saved keystones."], mMT:GetRGB("tip"))
+
+	DT.tooltip:Show()
+end
+
+local requestMapInfo = {
+	ELVUI_FORCE_UPDATE = true,
+	PLAYER_ENTERING_WORLD = true,
+	CHALLENGE_MODE_COMPLETED = true,
+	ITEM_CHANGED = true,
+}
+
+local function OnEvent(self, event, ...)
+	if event == "ELVUI_FORCE_UPDATE" then
+		if mMT:GetWeeklyResetTime() then DB.keystones = {} end
+	end
+
+	isMaxLevel = isMaxLevel or E:XPIsLevelMax()
+
+	if isMaxLevel then
+		if event == "ELVUI_FORCE_UPDATE" then C_MythicPlus_RequestCurrentAffixes() end
+		if requestMapInfo[event] then C_MythicPlus_RequestMapInfo() end
+		SaveMyKeystone()
+	end
+
+	local myScore = mMT:GetMyMythicPlusScore()
+	self.text:SetFormattedText(textString, isMaxLevel and myScore or L["Level: "] .. format(valueString, E.mylevel))
+end
+
+local function ValueColorUpdate(self, hex)
+	local textHex, valueHex = mMT:GetDTColorHex(hex)
+	textString = strjoin("", textHex, "%s|r")
+	valueString = strjoin("", valueHex, "%s|r")
+	OnEvent(self)
+end
+
+local events = {
+	"CHALLENGE_MODE_START",
+	"CHALLENGE_MODE_COMPLETED",
+	"CHALLENGE_MODE_MAPS_UPDATE",
+	"PLAYER_ENTERING_WORLD",
+	"UPDATE_INSTANCE_INFO",
+	"CHALLENGE_MODE_RESET",
+	"ENCOUNTER_END",
+	"MYTHIC_PLUS_CURRENT_AFFIX_UPDATE",
+	"BAG_UPDATE_DELAYED",
+	"ITEM_CHANGED",
+}
+
+DT:RegisterDatatext("mMT - M+ Score", mMT.Name, events, OnEvent, nil, OnClick, OnEnter, nil, L["M+ Score"], nil, ValueColorUpdate)

@@ -1,0 +1,16 @@
+tag 04397c11a0aebbcdd3e645a777d324d5bd774625 WoW-1.15.7-release1
+Author:	Odica Jaedenar <odica.jaedenar@gmail.com>
+Date:	Mon Apr 14 00:13:49 2025 +0200
+
+Tagged as WoW-1.15.7-release1
+
+commit 31c2871b5a2b4ee3364d3914688e59097ada52ef
+Author: Odica Jaedenar <odica.jaedenar@gmail.com>
+Date:   Mon Apr 14 00:13:06 2025 +0200
+
+    - added 5 missing MapIDs
+    - fixed an issue causing some recently added instances not to be initialized
+    - added Scarlet Enclave (raid)
+    - added Karazhan Crypts (dungeon)
+    - updated version in TOC to 11507
+

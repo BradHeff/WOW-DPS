@@ -1,0 +1,286 @@
+local E, L, V, P, G = unpack(ElvUI)
+
+local _G = _G
+local pi = math.pi
+local utf8sub = string.utf8sub
+local tonumber, format = tonumber, format
+local tinsert, strfind, strmatch = tinsert, strfind, strmatch
+local next, max, wipe, gsub = next, max, wipe, gsub
+
+local GetAverageItemLevel = GetAverageItemLevel
+local GetInspectSpecialization = C_SpecializationInfo.GetInspectSpecialization or GetInspectSpecialization
+local GetInventoryItemTexture = GetInventoryItemTexture
+local GetInventoryItemLink = GetInventoryItemLink
+local WorldFrame = WorldFrame
+
+local RETRIEVING_ITEM_INFO = RETRIEVING_ITEM_INFO
+local ITEM_SPELL_TRIGGER_ONEQUIP = ITEM_SPELL_TRIGGER_ONEQUIP
+
+local GetSpellDescription = C_Spell.GetSpellDescription or GetSpellDescription
+local ESSENCE_DESCRIPTION = GetSpellDescription(277253)
+
+local GetItemInfo = C_Item.GetItemInfo
+local GetCVarBool = C_CVar.GetCVarBool
+
+local MATCH_ITEM_LEVEL = ITEM_LEVEL:gsub('%%d', '(%%d+)')
+local MATCH_MIN_LEVEL = ITEM_MIN_LEVEL:gsub('%%d', '(%%d+)')
+local MATCH_ITEM_LEVEL_ALT = ITEM_LEVEL_ALT:gsub('%%d(%s?)%(%%d%)', '%%d+%1%%((%%d+)%%)')
+local MATCH_ENCHANT = ENCHANTED_TOOLTIP_LINE:gsub('%%s', '(.+)')
+
+local ARMOR_SLOTS = { 1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 }
+local X2_EXCEPTIONS = { [2] = 19 } -- wands: use INVTYPE_RANGEDRIGHT but are 1H
+local X2_INVTYPES = {
+	INVTYPE_2HWEAPON = true,
+	INVTYPE_RANGEDRIGHT = true,
+	INVTYPE_RANGED = true
+}
+
+local MISSING_RED = format('|cFFFF3333%s|r', _G.ADDON_MISSING)
+local MISSING_OFFHANDS = {
+	[_G.INVTYPE_WEAPON] = true,
+	[_G.INVTYPE_2HWEAPON] = true,
+	[_G.INVTYPE_WEAPONOFFHAND] = not E.Retail
+}
+
+local MISSING_ENCHANTS = {
+	E.Retail,	-- 1: Head
+	false,		-- 2: Neck
+	E.Retail,	-- 3: Shoulders
+	false,		-- 4: Shirt
+	E.Retail,	-- 5: Chest
+	false,		-- 6: Waist
+	E.Retail,	-- 7: Legs
+	E.Retail,	-- 8: Feet
+	false,		-- 9: Wrist
+	false,		-- 10: Hands
+	E.Retail,	-- 11: Ring 1
+	E.Retail,	-- 12: Ring 2
+	false,		-- 13: Trinket 1
+	false,		-- 14: Trinket 2
+	false,		-- 15: Back
+	E.Retail,	-- 16: Main Hand
+	E.Retail,	-- 17: Off Hand (only weapons)
+}
+
+function E:InspectGearSlot(line, lineText, slotInfo, slot, lastLine)
+	if not lineText then return end
+
+	-- handle item level
+	local itemLevel = not slotInfo.iLvl and (strmatch(lineText, MATCH_ITEM_LEVEL_ALT) or (not strmatch(lineText, MATCH_MIN_LEVEL) and strmatch(lineText, MATCH_ITEM_LEVEL)))
+	if itemLevel then
+		slotInfo.iLvl = tonumber(itemLevel)
+
+		local r1, g1, b1 = _G.ElvUI_ScanTooltipTextLeft1:GetTextColor()
+		slotInfo.itemLevelColors[1] = r1
+		slotInfo.itemLevelColors[2] = g1
+		slotInfo.itemLevelColors[3] = b1
+	end
+
+	-- if its an offhand weapon for missing display
+	if slot == 17 and MISSING_OFFHANDS[lineText] then
+		slotInfo.offhandWeapon = true
+	end
+
+	-- handle encahants, current this check limits it to retail only
+	local db = E.db.general.itemLevel
+	local enchant = strmatch(lineText, MATCH_ENCHANT)
+	if enchant then
+		local color1, color2 = strmatch(enchant, '(|cn.-:).-(|r)')
+		local clean = gsub(gsub(enchant, '%s?|A.-|a', ''), '|cn.-:(.-)|r', '%1')
+		local first, second = E:SplitString(clean, ' - ')
+		local text = second or first
+
+		local r, g, b = line:GetTextColor()
+		local shortStrip = gsub(text, '[&+] ?', '')
+		local shortAbbrev = db.enchantAbbrev and gsub(shortStrip, '(%w%w%w%w%w)%w+', '%1')
+		slotInfo.enchantText = format('%s%s%s', color1 or '', text, color2 or '')
+		slotInfo.enchantTextShort = format('%s%s%s', color1 or '', utf8sub(shortAbbrev or shortStrip, 1, 20), color2 or '')
+		slotInfo.enchantTextReal = enchant -- unchanged, contains Atlas and color
+
+		slotInfo.enchantColors[1] = r
+		slotInfo.enchantColors[2] = g
+		slotInfo.enchantColors[3] = b
+	elseif lastLine and (not slotInfo.enchantText and db.showMissing) and (slot ~= 17 or slotInfo.offhandWeapon) and MISSING_ENCHANTS[slot] then
+		slotInfo.enchantText = MISSING_RED
+		slotInfo.enchantTextShort = MISSING_RED
+		slotInfo.enchantTextReal = nil
+
+		slotInfo.enchantColors[1] = 1
+		slotInfo.enchantColors[2] = 0.3
+		slotInfo.enchantColors[3] = 0.3
+	end
+end
+
+function E:CollectEssenceInfo(index, lineText, slotInfo)
+	local step = 1
+	local essence = slotInfo.essences[step]
+	if essence and next(essence) and (ESSENCE_DESCRIPTION and strfind(lineText, ESSENCE_DESCRIPTION, nil, true) and strfind(lineText, ITEM_SPELL_TRIGGER_ONEQUIP, nil, true)) then
+		for i = 5, 2, -1 do
+			local line = _G['ElvUI_ScanTooltipTextLeft'..index - i]
+			local text = line and line:GetText()
+
+			if text and (not strmatch(text, '^[ +]')) and essence and next(essence) then
+				local r, g, b = line:GetTextColor()
+
+				essence[4] = E:RGBToHex(r, g, b)
+				essence[5] = text
+
+				step = step + 1
+				essence = slotInfo.essences[step]
+			end
+		end
+	end
+end
+
+function E:GetGearSlotInfo(unit, slot, deepScan)
+	local tt = E.ScanTooltip
+	tt:SetOwner(WorldFrame, 'ANCHOR_NONE')
+
+	if not tt.slotInfo then tt.slotInfo = {} else wipe(tt.slotInfo) end
+	local slotInfo = tt.slotInfo
+
+	local hasItem = tt:SetInventoryItem(unit, slot)
+	local info = hasItem and tt:GetTooltipData()
+	local lines = info and info.lines
+	if deepScan then
+		slotInfo.gems, slotInfo.essences = E:ScanTooltipTextures()
+
+		if not tt.enchantColors then tt.enchantColors = {} else wipe(tt.enchantColors) end
+		if not tt.itemLevelColors then tt.itemLevelColors = {} else wipe(tt.itemLevelColors) end
+		slotInfo.enchantColors = tt.enchantColors
+		slotInfo.itemLevelColors = tt.itemLevelColors
+
+		if lines then
+			local total = #lines
+			for i, line in next, lines do
+				local text = line and line.leftText
+				if i == 1 and text == RETRIEVING_ITEM_INFO then
+					return 'tooSoon'
+				else
+					E:InspectGearSlot(_G['ElvUI_ScanTooltipTextLeft'..i], text, slotInfo, slot, i == total)
+					E:CollectEssenceInfo(i, text, slotInfo)
+				end
+			end
+		end
+	elseif lines then
+		local firstLine = lines[1]
+		local firstText = firstLine and firstLine.leftText
+		if firstText == RETRIEVING_ITEM_INFO then
+			return 'tooSoon'
+		end
+
+		local colorblind = GetCVarBool('colorblindmode')
+		local numLines = E.Mists and (colorblind and 21 or 20) or (colorblind and 4 or 3)
+		for x = 2, numLines do
+			local line = lines[x]
+			if line then
+				local text = line.leftText
+				local itemLevel = (text and text ~= '') and (strmatch(text, MATCH_ITEM_LEVEL_ALT) or strmatch(text, MATCH_ITEM_LEVEL))
+				if itemLevel then
+					slotInfo.iLvl = tonumber(itemLevel)
+				end
+			end
+		end
+	end
+
+	return slotInfo
+end
+
+-- Credit ls & Acidweb
+function E:CalculateAverageItemLevel(iLevelDB, unit)
+	local total, spec = 0, not E.Classic and GetInspectSpecialization(unit)
+	if E:IsSecretValue(spec) or (not spec or spec == 0) then return end
+
+	-- Armor
+	for _, id in next, ARMOR_SLOTS do
+		local link = GetInventoryItemLink(unit, id)
+		if link then
+			local cur = iLevelDB[id]
+			if cur and cur > 0 then
+				total = total + cur
+			end
+		elseif GetInventoryItemTexture(unit, id) then
+			return
+		end
+	end
+
+	-- Main hand
+	local mainItemLevel, mainQuality, mainEquipLoc, mainItemClass, mainItemSubClass, _ = 0
+	local mainLink = GetInventoryItemLink(unit, 16)
+	if mainLink then
+		mainItemLevel = iLevelDB[16]
+		_, _, mainQuality, _, _, _, _, _, mainEquipLoc, _, _, mainItemClass, mainItemSubClass = GetItemInfo(mainLink)
+	elseif GetInventoryItemTexture(unit, 16) then
+		return
+	end
+
+	-- Off hand
+	local offItemLevel, offEquipLoc = 0
+	local offLink = GetInventoryItemLink(unit, 17)
+	if offLink then
+		offItemLevel = iLevelDB[17]
+		_, _, _, _, _, _, _, _, offEquipLoc = GetItemInfo(offLink)
+	elseif GetInventoryItemTexture(unit, 17) then
+		return
+	end
+
+	if mainItemLevel and offItemLevel then
+		if mainQuality == 6 or (not offEquipLoc and X2_INVTYPES[mainEquipLoc] and X2_EXCEPTIONS[mainItemClass] ~= mainItemSubClass and spec ~= 72) then
+			mainItemLevel = max(mainItemLevel, offItemLevel)
+			total = total + mainItemLevel * 2
+		else
+			total = total + mainItemLevel + offItemLevel
+		end
+	end
+
+	-- at the beginning of an arena match no info might be available,
+	-- so despite having equipped gear a person may appear naked
+	if total == 0 then
+		return
+	end
+
+	return E:Round(total / 16, 2)
+end
+
+function E:ColorizeItemLevel(num)
+	if num >= 0 then
+		return .1, 1, .1
+	else
+		return E:ColorGradient(-(pi/num), 1, .1, .1, 1, 1, .1, .1, 1, .1)
+	end
+end
+
+function E:GetPlayerItemLevel()
+	local average, equipped = GetAverageItemLevel()
+	return E:Round(average, 2), E:Round(equipped, 2)
+end
+
+do
+	local iLevelDB, tryAgain = {}, {}
+	function E:GetUnitItemLevel(unit)
+		if E:UnitIsUnit(unit, 'player') then
+			local _, equipped = E:GetPlayerItemLevel()
+			return equipped
+		end
+
+		if next(iLevelDB) then wipe(iLevelDB) end
+		if next(tryAgain) then wipe(tryAgain) end
+
+		for i = 1, 17 do
+			if i ~= 4 then
+				local slotInfo = E:GetGearSlotInfo(unit, i)
+				if slotInfo == 'tooSoon' then
+					tinsert(tryAgain, i)
+				else
+					iLevelDB[i] = slotInfo.iLvl
+				end
+			end
+		end
+
+		if next(tryAgain) then
+			return 'tooSoon', unit, tryAgain, iLevelDB
+		end
+
+		return E:CalculateAverageItemLevel(iLevelDB, unit)
+	end
+end

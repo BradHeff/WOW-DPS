@@ -1,0 +1,610 @@
+--[[wow-addon-porter]] local __FP = ForeverPort_ElvUI_LocPlus or _G; local GetNumSkillLines, GetSkillLineInfo = __FP.GetNumSkillLines, __FP.GetSkillLineInfo; local E, L, V, P, G = unpack(ElvUI)
+local LP = E:GetModule('LocationPlus')
+
+local Tourist = E.Retail and LibStub('LibTourist-3.0') or E.Mists and LibStub('LibTouristClassic-1.0') or (E.Classic or E.Forever) and LibStub('LibTouristClassicEra') or E.TBC and LibStub('LibTouristClassicBCA')
+
+local format, tonumber, pairs = string.format, tonumber, pairs
+
+local GetBindLocation = GetBindLocation
+local C_Map_GetBestMapForUnit = C_Map.GetBestMapForUnit
+local C_CurrencyInfo_GetCurrencyInfo = C_CurrencyInfo.GetCurrencyInfo
+local C_CurrencyInfo_GetCurrencyListSize = C_CurrencyInfo.GetCurrencyListSize
+local GetZonePVPInfo = C_PvP.GetZonePVPInfo or GetZonePVPInfo
+local GetProfessionInfo = GetProfessionInfo
+local GetProfessions = GetProfessions
+local GetNumSkillLines = GetNumSkillLines
+local GetSkillLineInfo = GetSkillLineInfo
+local IsInInstance = IsInInstance
+local UnitLevel = UnitLevel
+
+local GameTooltip = GameTooltip
+local selectioncolor = selectioncolor
+
+local PLAYER, UNKNOWN, TRADE_SKILLS, TOKENS, DUNGEONS = PLAYER, UNKNOWN, TRADE_SKILLS, TOKENS, DUNGEONS
+local PROFESSIONS_FISHING, LEVEL_RANGE, STATUS, HOME, CONTINENT, PVP, RAID = PROFESSIONS_FISHING, LEVEL_RANGE, STATUS, HOME, CONTINENT, PVP, RAID
+local SANCTUARY_TERRITORY, ARENA, FRIENDLY, HOSTILE, CONTESTED_TERRITORY, COMBAT, AGGRO_WARNING_IN_INSTANCE = SANCTUARY_TERRITORY, ARENA, FRIENDLY, HOSTILE, CONTESTED_TERRITORY, COMBAT, AGGRO_WARNING_IN_INSTANCE
+local SECONDARY_SKILLS, DELVE_LABEL = SECONDARY_SKILLS, DELVE_LABEL
+
+-- Icons on Location Panel
+local FISH_ICON = "|TInterface\\AddOns\\ElvUI_LocPlus\\media\\fish.tga:14:14|t"
+local PET_ICON = "|TInterface\\AddOns\\ElvUI_LocPlus\\media\\pet.tga:14:14|t"
+local LEVEL_ICON = "|TInterface\\AddOns\\ElvUI_LocPlus\\media\\levelup.tga:14:14|t"
+
+--------------------
+-- Currency Table --
+--------------------
+local currency = {
+	--395,	-- Justice Points
+	--396,	-- Valor Points
+	--777,	-- Timeless Coins
+	--697,	-- Elder Charm of Good Fortune
+	--738,	-- Lesser Charm of Good Fortune
+	--390,	-- Conquest Points
+	--392,	-- Honor Points
+	--515,	-- Darkmoon Prize Ticket
+	--402,	-- Ironpaw Token
+	--776,	-- Warforged Seal
+	
+	-- WoD
+	--824,	-- Garrison Resources
+	--823,	-- Apexis Crystal (for gear, like the valors)
+	--994,	-- Seal of Tempered Fate (Raid loot roll)
+	--980,	-- Dingy Iron Coins (rogue only, from pickpocketing)
+	--944,	-- Artifact Fragment (PvP)
+	--1101,	-- Oil
+	--1129,	-- Seal of Inevitable Fate
+	--821,	-- Draenor Clans Archaeology Fragment
+	--828,	-- Ogre Archaeology Fragment
+	--829,	-- Arakkoa Archaeology Fragment
+	--1166, -- Timewarped Badge (6.22)
+	--1191,	-- Valor Points (6.23)
+	
+	-- Legion
+	--1226,	-- Nethershard (Invasion scenarios)
+	--1172,	-- Highborne Archaeology Fragment
+	--1173,	-- Highmountain Tauren Archaeology Fragment
+	--1155,	-- Ancient Mana
+	--1220,	-- Order Resources
+	--1275,	-- Curious Coin (Buy stuff :P)
+	--1226,	-- Nethershard (Invasion scenarios)
+	--1273,	-- Seal of Broken Fate (Raid)
+	--1154,	-- Shadowy Coins
+	--1149,	-- Sightless Eye (PvP)
+	--1268,	-- Timeworn Artifact (Honor Points?)
+	--1299,	-- Brawler's Gold
+	--1314,	-- Lingering Soul Fragment (Good luck with this one :D)
+	--1342,	-- Legionfall War Supplies (Construction at the Broken Shore)
+	--1355,	-- Felessence (Craft Legentary items)
+	--1356,	-- Echoes of Battle (PvP Gear)
+	--1357,	-- Echoes of Domination (Elite PvP Gear)
+	--1416,	-- Coins of Air
+	--1506,	-- Argus Waystone
+	--1508,	-- Veiled Argunite
+	--1533,	-- Wakening Essence
+
+	-- BfA
+	--1560, -- War Resources
+	--1580,	-- Seal of Wartorn Fate
+	--1587,	-- War Supplies
+	--1710,	-- Seafarer's Dubloon
+	--1718,	-- Titan Residuum
+	--1719,	-- Corrupted Memento
+	--1721,	-- Prismatic Manapearl
+	--1755,	-- Coalescing Visions
+	--1803,	-- Echoes of Ny'alotha
+
+	-- Shadowlands
+	--1751,	-- Freed Soul
+	--1754,	-- Argent Commendation
+	--1767, -- Stygia
+	--1810,	-- Willing Soul
+	--1813,	-- Reservoir Anima
+	--1816, -- Sinstone Fragments
+	--1820,	-- Infused Ruby
+	--1822,	-- Renown
+	--1828, -- Soul Ash
+	--1906,	-- Sould Cinders
+	--1885, -- Grateful Offering
+	--1792,	-- Honor
+	--1602,	-- New Conquest Points
+	--1191,	-- Valor
+	--1977,	-- Stygian Ember
+	--1904,	-- Tower Knowledge
+	--1931,	-- Cataloged Research
+	--1979,	-- Cyphers of the First Ones
+	--2009,	-- Cosmic Flux
+
+	-- Dragonflight
+	1191,	-- Valor
+	1602,	-- New Conquest Points
+	1792,	-- Honor
+	2123,	-- Bloody Tokens
+	--2003,	-- Dragon Isles Supplies
+	--2118,	-- Elemental Overflow
+	--2122,	-- Storm Sigil
+	--2245,	-- Flightstones
+	--2594,	-- Paracasual Flakes
+	--2650,	-- Emerald Dewdrop
+	--2706,	-- Whelping's Dreaming Crest
+	--2707,	-- Drake's Dreaming Crest
+	--2708,	-- Wyrm's Dreaming Crest
+	--2709,	-- Aspect's Dreaming Crest
+	--2657,	-- Mysterious Fragment
+	
+	-- The War Within
+	3056, 	-- Kej
+	3089,	-- Residual Memories
+	2815,	-- Resonance Crystals
+	3028,	-- Restored Coffer Key
+	3008,	-- Valorstones
+	2914,	-- Weathered Harbinger Crest
+	2915,	-- Carved Harbinger Crest
+	2917,	-- Gilded Harbinger Crest
+}
+
+--[[if E.myfaction == 'Alliance' then
+	tinsert(currency, 1717)
+elseif E.myfaction == 'Horde' then
+	tinsert(currency, 1716)
+end]]
+
+-----------------------
+-- Tooltip functions --
+-----------------------
+
+-- Colors
+local C = {
+	white	= "|cffffffff",
+	green	= "|cff1eff00",
+	blue	= "|cff0070dd",
+	orange	= "|cffff8000",
+	red		= "|cffff0000",
+	yellow	= "|cffffff00",
+	gold	= "|cffffd700",
+	purple	= "|cff9999ff",
+}
+
+-- PvP/Raid/Delves filter
+local pvpLabel = C.red .. PVP .. "|r"
+local raidLabel = C.green .. RAID .. "|r"
+local delveLabel = E.Retail and C.purple .. DELVE_LABEL .. "|r"
+
+local function PvPorRaidFilter(zone)
+	if not (E.Classic or E.Forever) and (Tourist:IsArena(zone) or Tourist:IsBattleground(zone)) then
+		if E.db.locplus.tthidepvp then return nil end
+		return pvpLabel
+	end
+
+	if Tourist:GetInstanceGroupSize(zone) >= 10 then
+		if E.db.locplus.tthideraid then return nil end
+		return raidLabel
+	end
+
+	if E.Retail and Tourist:IsDelve(zone) then
+		if E.db.locplus.tthideDelves then return nil end
+		return delveLabel
+	end
+
+	return ""
+end
+
+-- Dungeon coords
+local function GetDungeonCoords(zone)
+	local z, x, y = "", 0, 0
+	local dungeonCoords
+
+	if Tourist:IsInstance(zone) then
+		z, x, y = Tourist:GetEntrancePortalLocation(zone)
+	end
+
+	if z == nil then
+		dungeonCoords = ""
+	elseif E.db.locplus.ttcoords then
+		x = tonumber(E:Round(x*100, 0))
+		y = tonumber(E:Round(y*100, 0))		
+		dungeonCoords = format("%s(%d, %d)|r", C.white, x, y)
+	else
+		dungeonCoords = ""
+	end
+
+	return dungeonCoords
+end
+
+-- Recommended zones
+local function GetRecommendedZones(zone)
+	local pvpRaidFilter = PvPorRaidFilter(zone)
+	if pvpRaidFilter == nil then return end
+
+	local low, high = Tourist:GetLevel(zone)
+	local r, g, b = Tourist:GetLevelColor(zone)
+	local continent = Tourist:GetContinent(zone)
+
+	local levelColor = E:RGBToHex(r, g, b)
+	local levelRange = (low == high) and low or (low .. "-" .. high)
+
+	local leftSide = C.white .. zone .. pvpRaidFilter
+	local rightSide = C.orange .. continent .. "|r " .. levelColor .. levelRange .. "|r"
+
+	GameTooltip:AddDoubleLine(leftSide, rightSide)
+end
+
+-- Dungeons in the zone
+local function GetZoneDungeons(dungeon)
+	local low, high = Tourist:GetLevel(dungeon)
+	local r, g, b = Tourist:GetLevelColor(dungeon)
+	local groupSize = Tourist:GetInstanceGroupSize(dungeon)
+	local altGroupSize = Tourist:GetInstanceAltGroupSize(dungeon)
+	local groupSizeStyle = (groupSize > 0 and format("|cFFFFFF00|r (%d", groupSize) or "")
+	local altGroupSizeStyle = (altGroupSize > 0 and format("|cFFFFFF00|r/%d", altGroupSize) or "")
+	local dungeonCoords = GetDungeonCoords(dungeon)
+	local pvpRaidFilter = PvPorRaidFilter(dungeon)
+
+	if pvpRaidFilter == nil then return end
+
+	local levelColor = E:RGBToHex(r, g, b)
+	local levelRange = (low == high) and low or (low .. "-" .. high)
+
+	local leftSide = C.white .. dungeon .. (groupSizeStyle or "") .. (altGroupSizeStyle or "") .. "-" .. PLAYER .. ") " .. dungeonCoords .. pvpRaidFilter
+	local rightSide = levelColor .. levelRange .. "|r"
+
+	GameTooltip:AddDoubleLine(leftSide, rightSide)
+end
+
+-- Recommended Dungeons
+local function GetRecommendedDungeons(dungeon)
+	local low, high = Tourist:GetLevel(dungeon)
+	local r, g, b = Tourist:GetLevelColor(dungeon)
+	local instanceZone = Tourist:GetInstanceZone(dungeon)
+	local dungeonCoords = GetDungeonCoords(dungeon)
+	local pvpRaidFilter = PvPorRaidFilter(dungeon)
+
+	if pvpRaidFilter == nil then return end
+
+	if instanceZone == nil then
+		instanceZone = ""
+	else
+		instanceZone = C.orange .. " ("..instanceZone..")" .. "|r "
+	end
+
+	local levelColor = E:RGBToHex(r, g, b)
+	local levelRange = (low == high) and low or (low .. "-" .. high)
+
+	local leftSide = C.white .. dungeon .. instanceZone .. dungeonCoords .. " " .. pvpRaidFilter
+	local rightSide = levelColor .. levelRange .. "|r"
+
+	GameTooltip:AddDoubleLine(leftSide, rightSide)
+end
+
+local function GetTokenInfo(id)
+	local info = C_CurrencyInfo_GetCurrencyInfo(id)
+	if info then
+		return info.name, info.quantity, info.iconFileID, info.maxQuantity
+	else
+		return
+	end
+end
+
+-- Status
+function LP:GetStatus(color)
+	local status = ""
+	local r, g, b = 1, 1, 0
+	local pvpType = GetZonePVPInfo()
+	local inInstance = IsInInstance()
+
+	if (pvpType == "sanctuary") then
+		status = SANCTUARY_TERRITORY
+		r, g, b = 0.41, 0.8, 0.94
+	elseif (pvpType == "arena") then
+		status = ARENA
+		r, g, b = 1, 0.1, 0.1
+	elseif (pvpType == "friendly") then
+		status = FRIENDLY
+		r, g, b = 0.1, 1, 0.1
+	elseif (pvpType == "hostile") then
+		status = HOSTILE
+		r, g, b = 1, 0.1, 0.1
+	elseif (pvpType == "contested") then
+		status = CONTESTED_TERRITORY
+		r, g, b = 1, 0.7, 0.10
+	elseif (pvpType == "combat") then
+		status = COMBAT
+		r, g, b = 1, 0.1, 0.1
+	elseif inInstance then
+		status = AGGRO_WARNING_IN_INSTANCE
+		r, g, b = 1, 0.1, 0.1
+	else
+		status = CONTESTED_TERRITORY
+	end
+
+	local statusColor = E:RGBToHex(r, g, b)
+	local statusText = statusColor .. status .. "|r"
+
+	if color then
+		return r, g, b
+	else
+		return statusText
+	end
+end
+
+-- Get Fishing Level
+function LP:GetFishingLevel(onTooltip)
+	if E.Retail then return end
+
+	local mapID = C_Map_GetBestMapForUnit("player")
+	local zoneText = Tourist:GetMapNameByIDAlt(mapID) or UNKNOWN
+	local minFish, maxFish = Tourist:GetFishingLevel(zoneText)
+
+	if minFish then
+		if onTooltip then
+			return minFish, maxFish
+		else
+			return format(" (%s-%s) ", minFish, maxFish) .. (E.db.locplus.showicon and FISH_ICON or "")
+		end
+	else
+		return ""
+	end
+end
+
+-- Zone level range
+function LP:GetLevelRange(zoneText, onTooltip)
+	local mapID = C_Map_GetBestMapForUnit("player")
+	zoneText = Tourist:GetMapNameByIDAlt(mapID) or UNKNOWN
+	local low, high = Tourist:GetLevel(zoneText)
+	local zoneLevel
+
+	if low > 0 and high > 0 then
+		local r, g, b = Tourist:GetLevelColor(zoneText)
+		local levelColor = E:RGBToHex(r, g, b)
+		local levelRange = (low == high) and low or (low .. "-" .. high)
+
+		zoneLevel = levelColor .. levelRange .. "|r"
+
+		if onTooltip then
+			return zoneLevel
+		else
+			zoneLevel = " (" .. zoneLevel .. ") "
+			if E.db.locplus.showicon then
+				zoneLevel = zoneLevel .. LEVEL_ICON
+			end
+		end
+	end
+
+	return zoneLevel or ""
+end
+
+-- PetBattle Range
+function LP:GetBattlePetLevel(zoneText, onTooltip)
+	if not E.Retail then return end
+
+	local mapID = C_Map_GetBestMapForUnit("player")
+	zoneText = Tourist:GetMapNameByIDAlt(mapID) or UNKNOWN
+	local uniqueZone = Tourist:GetUniqueZoneNameForLookup(zoneText)
+	local low, high = Tourist:GetBattlePetLevel(uniqueZone)
+	local petlevel
+
+	if low ~= nil or high ~= nil then
+		if low ~= high then
+			petlevel = format("%d-%d", low, high)
+		else
+			petlevel = format("%d", high)
+		end
+
+		if onTooltip then
+			return petlevel
+		else
+			if E.db.locplus.showicon then
+				petlevel = format(" (%s) ", petlevel)..PET_ICON
+			else
+				petlevel = format(" (%s) ", petlevel)
+			end
+		end
+	end
+
+	return petlevel or ""
+end
+
+function LP:GetBattlePetLevel(zoneText, onTooltip)
+	if not E.Retail then return end
+
+	-- Get the specific zone for lookup
+	local mapID = C_Map_GetBestMapForUnit("player")
+	local name = Tourist:GetMapNameByIDAlt(mapID) or UNKNOWN
+	local uniqueZone = Tourist:GetUniqueZoneNameForLookup(name)
+
+	local low, high = Tourist:GetBattlePetLevel(uniqueZone)
+	if not low then return "" end
+
+	local petlevel = (low == high) and tostring(low) or (low .. "-" .. high)
+
+	if onTooltip then
+		return petlevel
+	end
+
+	return " (" .. petlevel .. ") " .. (E.db.locplus.showicon and PET_ICON or "")
+end
+
+function LP:UpdateTooltip()
+	local mapID = C_Map_GetBestMapForUnit("player")
+	local zoneText = Tourist:GetMapNameByIDAlt(mapID) or UNKNOWN
+	local currentPosition = (zoneText.." ") or ""
+
+	GameTooltip:ClearLines()
+
+	-- Zone
+	GameTooltip:AddDoubleLine(L["Zone : "], zoneText, 1, 1, 1, selectioncolor)
+
+	-- Continent
+	local continent = Tourist:GetContinent(zoneText)
+	if continent then
+		GameTooltip:AddDoubleLine(CONTINENT.." : ", continent, 1, 1, 1, selectioncolor)
+	end
+
+	-- Home
+	local bindLocation = GetBindLocation()
+	if bindLocation and bindLocation ~= "" then
+		GameTooltip:AddDoubleLine(HOME.." :", bindLocation, 1, 1, 1, 0.41, 0.8, 0.94)
+	end
+
+	-- Status
+	if E.db.locplus.ttst then
+		local status = LP:GetStatus(false)
+		GameTooltip:AddDoubleLine(STATUS.." :", status, 1, 1, 1)
+	end
+
+    -- Zone level range
+	if E.db.locplus.ttlvl then
+		local zoneLevel = LP:GetLevelRange(zoneText, true)
+		if zoneLevel ~= "" then
+			GameTooltip:AddDoubleLine(LEVEL_RANGE.." : ", zoneLevel, 1, 1, 1)
+		end
+	end
+
+	-- Fishing
+	if not E.Retail then
+		if E.db.locplus.fish then
+			local minFish, maxFish = LP:GetFishingLevel(true)
+			if minFish and maxFish then
+				GameTooltip:AddDoubleLine(PROFESSIONS_FISHING.." : ", format("%s-%s", minFish, maxFish), 1, 1, 1)
+			end
+		end
+	end
+
+	-- Battle Pet Levels
+	if E.Retail then
+		if E.db.locplus.petlevel then
+			local petLevel = LP:GetBattlePetLevel(zoneText, true)
+			if petLevel ~= "" then
+				GameTooltip:AddDoubleLine(L["Battle Pet level"].. " :", petLevel, 1, 1, 1, selectioncolor)
+			end
+		end
+	end
+
+	-- Recommended zones
+	if E.db.locplus.ttreczones then
+		GameTooltip:AddLine(" ")
+		GameTooltip:AddLine(L["Recommended Zones :"], selectioncolor)
+
+		for zone in Tourist:IterateRecommendedZones() do
+			GetRecommendedZones(zone)
+		end
+	end
+
+	-- Instances in the zone
+	if E.db.locplus.ttinst and Tourist:DoesZoneHaveInstances(zoneText) and not (E.Classic or E.Forever) then
+		GameTooltip:AddLine(" ")
+		GameTooltip:AddLine(currentPosition .. DUNGEONS .. " :", selectioncolor)
+
+		for dungeon in Tourist:IterateZoneInstances(zoneText) do
+			GetZoneDungeons(dungeon)
+		end
+	end
+
+	-- Recommended Instances
+	local level = UnitLevel('player')
+	if E.db.locplus.ttrecinst and Tourist:HasRecommendedInstances() and level >= 15 then
+		GameTooltip:AddLine(" ")
+		GameTooltip:AddLine(L["Recommended Dungeons :"], selectioncolor)
+
+		for dungeon in Tourist:IterateRecommendedInstances() do
+			GetRecommendedDungeons(dungeon)
+		end
+	end
+
+	-- Currency
+	if E.Retail then
+		local numEntries = C_CurrencyInfo_GetCurrencyListSize() -- Check for entries to disable the tooltip title when no currency
+		if E.db.locplus.curr and numEntries > 0 then
+			GameTooltip:AddLine(" ")
+			GameTooltip:AddLine(TOKENS.." :", selectioncolor)
+
+			for _, id in pairs(currency) do
+				local name, amount, icon, totalMax = GetTokenInfo(id)
+
+				if(name and amount > 0) then
+					icon = ("|T%s:12:12:1:0|t"):format(icon)
+
+					if id == 1822 then -- Renown "cheat"
+						amount = amount + 1
+						totalMax = totalMax + 1
+					end
+
+					if totalMax == 0 then
+						GameTooltip:AddDoubleLine(icon..format(" %s : ", name), format("%s", amount ), 1, 1, 1, selectioncolor)
+					else
+						GameTooltip:AddDoubleLine(icon..format(" %s : ", name), format("%s / %s", amount, totalMax ), 1, 1, 1, selectioncolor)
+					end
+				end
+			end
+		end
+
+		-- Professions
+		local prof1, prof2, archy, fishing, cooking = GetProfessions()
+		if E.db.locplus.prof and (prof1 or prof2 or archy or fishing or cooking) then
+			GameTooltip:AddLine(" ")
+			GameTooltip:AddLine(TRADE_SKILLS.." :", selectioncolor)
+
+			local proftable = { GetProfessions() }
+			for i = 1, 5 do
+				local id = proftable[i]
+				if id then
+					local name, icon, rank, maxRank, _, _, _, rankModifier = GetProfessionInfo(id)
+					if rank < maxRank or (not E.db.locplus.profcap) then
+						icon = ("|T%s:12:12:1:0|t"):format(icon)
+						if (rankModifier and rankModifier > 0) then
+							GameTooltip:AddDoubleLine(format("%s %s :", icon, name), (format("%s |cFF6b8df4+ %s|r / %s", rank, rankModifier, maxRank)), 1, 1, 1, selectioncolor)				
+						else
+							GameTooltip:AddDoubleLine(format("%s %s :", icon, name), (format("%s / %s", rank, maxRank)), 1, 1, 1, selectioncolor)
+						end
+					end
+				end
+			end
+		end
+	end
+
+	if E.Wrath or E.Classic or E.TBC or E.Forever then
+		if E.db.locplus.prof then
+			GameTooltip:AddLine(" ")
+			GameTooltip:AddLine(TRADE_SKILLS.." :", selectioncolor)
+
+			local SecondarySkill = (SECONDARY_SKILLS or ""):gsub(":", '')
+			local hasSecondary = false
+			for skillIndex = 1, GetNumSkillLines() do
+				local skillName, isHeader, _, skillRank, _, skillModifier, skillMaxRank, isAbandonable = GetSkillLineInfo(skillIndex)
+
+				if hasSecondary and isHeader then
+					hasSecondary = false
+				end
+
+				if (skillName and isAbandonable) or hasSecondary then
+					if skillName and (skillRank < skillMaxRank or (not E.db.locplus.profcap)) then
+						if (skillModifier and skillModifier > 0) then
+							GameTooltip:AddDoubleLine(format("%s :", skillName), (format("%s |cFF6b8df4+ %s|r / %s", skillRank, skillModifier, skillMaxRank)), 1, 1, 1, selectioncolor)				
+						else
+							GameTooltip:AddDoubleLine(format("%s :", skillName), (format("%s / %s", skillRank, skillMaxRank)), 1, 1, 1, selectioncolor)
+						end
+					end
+				end
+
+				if isHeader then
+					if skillName == SecondarySkill then
+						hasSecondary = true
+					end
+				end
+			end
+		end
+	end
+
+	-- Hints
+	if E.db.locplus.tt then
+		if E.db.locplus.tthint then
+			GameTooltip:AddLine(" ")
+			GameTooltip:AddDoubleLine(L["Click : "], L["Toggle WorldMap"], 0.7, 0.7, 1, 0.7, 0.7, 1)
+			GameTooltip:AddDoubleLine(L["RightClick : "], L["Toggle Configuration"],0.7, 0.7, 1, 0.7, 0.7, 1)
+			GameTooltip:AddDoubleLine(L["ShiftClick : "], L["Send position to chat"],0.7, 0.7, 1, 0.7, 0.7, 1)
+			GameTooltip:AddDoubleLine(L["CtrlClick : "], L["Toggle Datatexts"],0.7, 0.7, 1, 0.7, 0.7, 1)
+		end
+		GameTooltip:Show()
+	else
+		GameTooltip:Hide()
+	end
+end

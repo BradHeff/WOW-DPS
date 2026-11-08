@@ -1,0 +1,505 @@
+dofile("setupTests.lua")
+
+describe("Tooltip", function()
+    ---@type QuestieDB
+    local QuestieDB
+    ---@type QuestieLib
+    local QuestieLib
+    ---@type QuestieComms
+    local QuestieComms
+    ---@type QuestiePlayer
+    local QuestiePlayer
+    ---@type QuestieTooltips
+    local QuestieTooltips
+
+    local objective = {
+        hasRegisteredTooltips = true,
+        registeredItemTooltips = true,
+    }
+    local specialObjective = {
+        hasRegisteredTooltips = true,
+        registeredItemTooltips = true,
+    }
+
+    before_each(function()
+        Questie.db.profile = {}
+
+        QuestieDB = QuestieLoader:ImportModule("QuestieDB")
+        QuestieDB.GetItemDroprate = function () return nil end
+        QuestieDB.GetQuest = spy.new(function(questId)
+            return {
+                Id = questId,
+                Objectives = {
+                    [1] = objective,
+                },
+                SpecialObjectives = {
+                    [1] = specialObjective,
+                },
+            }
+        end)
+        dofile("Modules/Libs/QuestieLib.lua")
+        QuestieLib = QuestieLoader:ImportModule("QuestieLib")
+        QuestieLib.GetColoredQuestName = spy.new(function()
+            return "Quest Name"
+        end)
+        QuestieLib.GetRGBForObjective = spy.new(function()
+            return "gold"
+        end)
+        QuestieComms = QuestieLoader:ImportModule("QuestieComms")
+        QuestieComms.remoteQuestLogs = {}
+        QuestieComms.remotePlayerClasses = {}
+        QuestieComms.remotePlayerEnabled = {}
+        QuestieComms.data = {
+            KeyExists = function() return false end,
+            GetTooltip = function() return {} end
+        }
+        QuestiePlayer = QuestieLoader:ImportModule("QuestiePlayer")
+        QuestiePlayer.GetPartyMemberByName = function() return nil end
+        QuestiePlayer.currentQuestlog = {}
+        QuestiePlayer.numberOfGroupMembers = 0
+        local ZoneDB = QuestieLoader:ImportModule("ZoneDB")
+        ZoneDB.GetParentZoneId = function() return nil end
+        dofile("Localization/l10n.lua")
+
+        dofile("Modules/Tooltips/Tooltip.lua")
+        QuestieTooltips = QuestieLoader:ImportModule("QuestieTooltips")
+    end)
+
+    describe("GetTooltip", function()
+        it("should return quest name when tooltip has name set and showQuestsInNpcTooltip is active", function()
+            Questie.db.profile.showQuestsInNpcTooltip = true
+            QuestieTooltips.lookupByKey = {["key"] = {["1 test 2"] = {questId = 1, name = "test", starterId = 2}}}
+
+            local tooltip = QuestieTooltips.GetTooltip("key")
+
+            assert.spy(QuestieLib.GetColoredQuestName).was.called_with(QuestieLib, 1, nil, true)
+            assert.are_same({"Quest Name"}, tooltip)
+        end)
+
+        it("should return empty tooltip when tooltip has name set but showQuestsInNpcTooltip is not active", function()
+            Questie.db.profile.showQuestsInNpcTooltip = false
+            QuestieTooltips.lookupByKey = {["key"] = {["1 test 2"] = {questId = 1, name = "test", starterId = 2}}}
+
+            local tooltip = QuestieTooltips.GetTooltip("key")
+
+            assert.spy(QuestieLib.GetColoredQuestName).was.not_called()
+            assert.are_same({}, tooltip)
+        end)
+
+        it("should return nil when no tooltip is registered", function()
+            QuestieTooltips.lookupByKey = {}
+
+            local tooltip = QuestieTooltips.GetTooltip("key")
+
+            assert.spy(QuestieLib.GetColoredQuestName).was.not_called()
+            assert.is_nil(tooltip)
+        end)
+
+        it("should use the objective player name for remote player class lookup", function()
+            _G.UnitName = function() return "Local" end
+            _G.IsInGroup = function() return true end
+            Questie.GetClassColor = spy.new(function()
+                return "|cFFC79C6E"
+            end)
+            QuestieTooltips.lookupByKey = {}
+            QuestieComms.remotePlayerEnabled["Bob"] = true
+            QuestieComms.remotePlayerClasses["Bob"] = "WARRIOR"
+            QuestieComms.remoteQuestLogs[1] = { ["Bob"] = {} }
+            QuestieComms.data.KeyExists = function(_, key)
+                return key == "m_123"
+            end
+            QuestieComms.data.GetTooltip = function(_, key)
+                if key == "m_123" then
+                    return {
+                        [1] = {
+                            ["Bob"] = {
+                                [1] = {
+                                    fulfilled = 3,
+                                    required = 5,
+                                    text = "do it",
+                                }
+                            }
+                        }
+                    }
+                end
+
+                return {}
+            end
+
+            local tooltip = QuestieTooltips.GetTooltip("m_123")
+
+            assert.is_nil(QuestieComms.remotePlayerClasses["Local"])
+            assert.spy(Questie.GetClassColor).was.called_with(Questie, "WARRIOR")
+            assert.are_same({
+                "Quest Name",
+                "   gold3/5 do it (|cFFC79C6EBob|rgold)|r (Nearby)",
+            }, tooltip)
+        end)
+
+        it("should return quest name and objective when tooltip has spell objective", function()
+            QuestieDB.QueryItemSingle = spy.new(function()
+                return "Item Name"
+            end)
+            QuestieTooltips.lookupByKey = {["m_123"] = {["1 1"] = {
+                questId = 1,
+                objective = {
+                    Index = 1,
+                    Type = "spell",
+                    Update = function() end,
+                    spawnList = {[123] = {ItemId = 5}}
+                }
+            }}}
+            QuestiePlayer.currentQuestlog[1] = {}
+
+            local tooltip = QuestieTooltips.GetTooltip("m_123")
+
+            assert.spy(QuestieDB.QueryItemSingle).was.called_with(5, "name")
+            assert.spy(QuestieLib.GetColoredQuestName).was.called_with(QuestieLib, 1, nil, true)
+            assert.are_same({"Quest Name", "   goldItem Name"}, tooltip)
+        end)
+
+        it("should return quest name and objective when tooltip has objective and Needed", function()
+            QuestieTooltips.lookupByKey = {["key"] = {["1 1"] = {
+                questId = 1,
+                objective = {
+                    Index = 1,
+                    Needed = 5,
+                    Collected = 3,
+                    Description = "do it",
+                    Update = function() end,
+                }
+            }}}
+            QuestiePlayer.currentQuestlog[1] = {}
+
+            local tooltip = QuestieTooltips.GetTooltip("key")
+
+            assert.spy(QuestieLib.GetColoredQuestName).was.called_with(QuestieLib, 1, nil, true)
+            assert.are_same({"Quest Name", "   gold3/5 do it"}, tooltip)
+        end)
+
+        it("should return quest name and objective description when tooltip has objective without Needed", function()
+            QuestieTooltips.lookupByKey = {["o_123"] = {["1 1"] = {
+                questId = 1,
+                objective = {
+                    Index = 1,
+                    Description = "do it",
+                    Update = function() end,
+                }
+            }}}
+            QuestiePlayer.currentQuestlog[1] = {}
+            QuestieDB.QueryObjectSingle = spy.new(function()
+                return {[440]={{10,10}}}
+            end)
+            local playerZone = 440
+
+            local tooltip = QuestieTooltips.GetTooltip("o_123", playerZone)
+
+            assert.spy(QuestieLib.GetColoredQuestName).was.called_with(QuestieLib, 1, nil, true)
+            assert.are_same({"Quest Name", "   golddo it"}, tooltip)
+            assert.spy(QuestieDB.QueryObjectSingle).was.called_with(123, "spawns")
+        end)
+
+        it("should return nil for objects which are not in the zone of the player", function()
+            QuestieTooltips.lookupByKey = {["o_123"] = {
+                ["1 1"] = {questId = 1, name = "test", starterId = 2},
+            }}
+            QuestieDB.QueryObjectSingle = spy.new(function()
+                return {[1]={{10,10}}}
+            end)
+            local playerZone = 440
+
+            local tooltip = QuestieTooltips.GetTooltip("o_123", playerZone)
+
+            assert.is_nil(tooltip)
+            assert.spy(QuestieDB.QueryObjectSingle).was.called_with(123, "spawns")
+        end)
+
+        it("should return tooltip for objects in the parent zone of the players zone", function()
+            QuestieTooltips.lookupByKey = {["o_123"] = {["1 1"] = {
+                questId = 1,
+                objective = {
+                    Index = 1,
+                    Description = "do it",
+                    Update = function() end,
+                }
+            }}}
+            QuestiePlayer.currentQuestlog[1] = {}
+            QuestieDB.QueryObjectSingle = spy.new(function()
+                return {[721]={{10,10}}} -- Gnomeregan
+            end)
+            local ZoneDB = QuestieLoader:ImportModule("ZoneDB")
+            ZoneDB.GetParentZoneId = spy.new(function(_, areaId)
+                if areaId == 10030 then return 721 end
+            end)
+            local playerZone = 10030 -- Gnomeregan - The Dormitory
+
+            local tooltip = QuestieTooltips.GetTooltip("o_123", playerZone)
+
+            assert.are_same({"Quest Name", "   golddo it"}, tooltip)
+            assert.spy(ZoneDB.GetParentZoneId).was.called_with(ZoneDB, 10030)
+        end)
+
+        it("should return quest name and objective description when players zone ID is 0", function()
+            QuestieTooltips.lookupByKey = {["o_123"] = {["1 1"] = {
+                questId = 1,
+                objective = {
+                    Index = 1,
+                    Description = "do it",
+                    Update = function() end,
+                }
+            }}}
+            QuestiePlayer.currentQuestlog[1] = {}
+            QuestieDB.QueryObjectSingle = spy.new(function() end)
+            local playerZone = 0
+
+            local tooltip = QuestieTooltips.GetTooltip("o_123", playerZone)
+
+            assert.spy(QuestieLib.GetColoredQuestName).was.called_with(QuestieLib, 1, nil, true)
+            assert.are_same({"Quest Name", "   golddo it"}, tooltip)
+            assert.spy(QuestieDB.QueryObjectSingle).was.not_called()
+        end)
+
+        it("should return quest name and objective description when players zone ID is nil", function()
+            QuestieTooltips.lookupByKey = {["o_123"] = {["1 1"] = {
+                questId = 1,
+                objective = {
+                    Index = 1,
+                    Description = "do it",
+                    Update = function() end,
+                }
+            }}}
+            QuestiePlayer.currentQuestlog[1] = {}
+            QuestieDB.QueryObjectSingle = spy.new(function() end)
+            _G.Questie.Debug = spy.new(function() end)
+
+            local tooltip = QuestieTooltips.GetTooltip("o_123", nil)
+
+            assert.spy(QuestieLib.GetColoredQuestName).was.called_with(QuestieLib, 1, nil, true)
+            assert.are_same({"Quest Name", "   golddo it"}, tooltip)
+            assert.spy(QuestieDB.QueryObjectSingle).was.not_called()
+            assert.spy(Questie.Debug).was.called_with(Questie.DEBUG_CRITICAL, "[QuestieTooltips.GetTooltip] was called without a playerZone for objects")
+        end)
+
+        it("should return quest name and objective description when object has no spawn", function()
+            QuestieTooltips.lookupByKey = {["o_123"] = {["1 1"] = {
+                questId = 1,
+                objective = {
+                    Index = 1,
+                    Description = "do it",
+                    Update = function() end,
+                }
+            }}}
+            QuestiePlayer.currentQuestlog[1] = {}
+            QuestieDB.QueryObjectSingle = spy.new(function()
+                return nil
+            end)
+            local playerZone = 440
+
+            local tooltip = QuestieTooltips.GetTooltip("o_123", playerZone)
+
+            assert.spy(QuestieLib.GetColoredQuestName).was.called_with(QuestieLib, 1, nil, true)
+            assert.are_same({"Quest Name", "   golddo it"}, tooltip)
+            assert.spy(QuestieDB.QueryObjectSingle).was.called_with(123, "spawns")
+        end)
+
+        it("should return quest name and objective description when object has an empty spawn table", function()
+            QuestieTooltips.lookupByKey = {["o_123"] = {["1 1"] = {
+                questId = 1,
+                objective = {
+                    Index = 1,
+                    Description = "do it",
+                    Update = function() end,
+                }
+            }}}
+            QuestiePlayer.currentQuestlog[1] = {}
+            QuestieDB.QueryObjectSingle = spy.new(function()
+                return {}
+            end)
+            local playerZone = 440
+
+            local tooltip = QuestieTooltips.GetTooltip("o_123", playerZone)
+
+            assert.are_same({"Quest Name", "   golddo it"}, tooltip)
+        end)
+
+        it("should only return quest name when tooltip has completed objective and showQuestsInNpcTooltip is true", function()
+            Questie.db.profile.showQuestsInNpcTooltip = true
+            QuestieTooltips.lookupByKey = {["key"] = {
+                ["1 test 2"] = {
+                    questId = 1,
+                    name = "test",
+                    starterId = 2
+                },
+                ["1 1"] = {
+                    questId = 1,
+                    objective = {
+                        Index = 1,
+                        Needed = 3,
+                        Collected = 3,
+                        Description = "do it",
+                        Update = function() end,
+                    }
+                }
+            }}
+            QuestiePlayer.currentQuestlog[1] = {}
+
+            local tooltip = QuestieTooltips.GetTooltip("key")
+
+            assert.spy(QuestieLib.GetColoredQuestName).was.called_with(QuestieLib, 1, nil, true)
+            assert.are_same({"Quest Name"}, tooltip)
+        end)
+
+        it("should return quest name and objective description when tooltip has completed objective and showQuestsInNpcTooltip is false", function()
+            Questie.db.profile.showQuestsInNpcTooltip = false
+            QuestieTooltips.lookupByKey = {["key"] = {
+                ["1 test 2"] = {
+                    questId = 1,
+                    name = "test",
+                    starterId = 2
+                },
+                ["1 1"] = {
+                    questId = 1,
+                    objective = {
+                        Index = 1,
+                        Needed = 5,
+                        Collected = 3,
+                        Description = "do it",
+                        Update = function() end,
+                    }
+                }
+            }}
+            QuestiePlayer.currentQuestlog[1] = {}
+
+            local tooltip = QuestieTooltips.GetTooltip("key")
+
+            assert.spy(QuestieLib.GetColoredQuestName).was.called_with(QuestieLib, 1, nil, true)
+            assert.are_same({"Quest Name", "   gold3/5 do it"}, tooltip)
+        end)
+
+        it("should return multiple objectives for same key", function()
+            QuestieLib.GetColoredQuestName = spy.new(function(_, questId)
+                 if questId == 1 then return "Quest Name" else return "Quest Name 2" end
+            end)
+            QuestieTooltips.lookupByKey = {["key"] = {
+                ["1 1"] = {
+                    questId = 1,
+                    objective = {
+                        Index = 1,
+                        Needed = 5,
+                        Collected = 3,
+                        Description = "do it",
+                        Update = function() end,
+                    }
+                },
+                ["1 2"] = {
+                    questId = 1,
+                    objective = {
+                        Index = 2,
+                        Needed = 1,
+                        Collected = 0,
+                        Description = "do something else",
+                        Update = function() end,
+                    }
+                },
+                ["2 1"] = {
+                    questId = 2,
+                    objective = {
+                        Index = 1,
+                        Needed = 10,
+                        Collected = 10,
+                        Description = "do something",
+                        Update = function() end,
+                    }
+                }
+            }}
+            QuestiePlayer.currentQuestlog[1] = {}
+            QuestiePlayer.currentQuestlog[2] = {}
+
+            local tooltip = QuestieTooltips.GetTooltip("key")
+
+            assert.spy(QuestieLib.GetColoredQuestName).was.called_with(QuestieLib, 1, nil, true)
+            assert.spy(QuestieLib.GetColoredQuestName).was.called_with(QuestieLib, 2, nil, true)
+            assert.are_same({
+                "Quest Name", "   gold0/1 do something else", "   gold3/5 do it",
+                "Quest Name 2", "   gold10/10 do something"
+            }, tooltip)
+        end)
+
+        it("should not Update objective for IsSourceItem", function()
+            local updateSpy = spy.new(function() end)
+            QuestieTooltips.lookupByKey = {["key"] = {["1 1"] = {
+                questId = 1,
+                objective = {
+                    Index = 1,
+                    Needed = 5,
+                    Collected = 3,
+                    Description = "do it",
+                    IsSourceItem = true,
+                    Update = updateSpy,
+                }
+            }}}
+            QuestiePlayer.currentQuestlog[1] = {}
+
+            QuestieTooltips.GetTooltip("key")
+
+            assert.spy(updateSpy).was.not_called()
+        end)
+
+        it("should not Update objective for IsRequiredSourceItem", function()
+            local updateSpy = spy.new(function() end)
+            QuestieTooltips.lookupByKey = {["key"] = {["1 1"] = {
+                questId = 1,
+                objective = {
+                    Index = 1,
+                    Needed = 5,
+                    Collected = 3,
+                    Description = "do it",
+                    IsRequiredSourceItem = true,
+                    Update = updateSpy,
+                }
+            }}}
+            QuestiePlayer.currentQuestlog[1] = {}
+
+            QuestieTooltips.GetTooltip("key")
+
+            assert.spy(updateSpy).was.not_called()
+        end)
+    end)
+
+    describe("RemoveQuest", function()
+        it("should reset tooltip flags without clearing AlreadySpawned", function()
+            local objectiveAlreadySpawned = {[123] = {}}
+            local specialObjectiveAlreadySpawned = {[456] = {}}
+            objective.AlreadySpawned = objectiveAlreadySpawned
+            specialObjective.AlreadySpawned = specialObjectiveAlreadySpawned
+            QuestieTooltips.lookupKeysByQuestId = {[1] = {"key"}}
+            QuestieTooltips.lookupByKey = {["key"] = {["1 test 2"] = {questId = 1, name = "test", starterId = 2}}}
+
+            QuestieTooltips:RemoveQuest(1)
+
+            assert.spy(QuestieDB.GetQuest).was.called_with(1)
+
+            assert.are_same(false, objective.hasRegisteredTooltips)
+            assert.are_same(false, objective.registeredItemTooltips)
+            assert.is_equal(objectiveAlreadySpawned, objective.AlreadySpawned)
+            assert.are_same({[123] = {}}, objective.AlreadySpawned)
+
+            assert.are_same(false, specialObjective.hasRegisteredTooltips)
+            assert.are_same(false, specialObjective.registeredItemTooltips)
+            assert.is_equal(specialObjectiveAlreadySpawned, specialObjective.AlreadySpawned)
+            assert.are_same({[456] = {}}, specialObjective.AlreadySpawned)
+
+            assert.are_same({}, QuestieTooltips.lookupByKey)
+            assert.are_same({}, QuestieTooltips.lookupKeysByQuestId)
+        end)
+
+        it("should do nothing when tooltip is already removed", function()
+            QuestieTooltips.lookupKeysByQuestId = {[1] = {"key"}}
+
+            QuestieTooltips:RemoveQuest(2)
+
+            assert.spy(QuestieDB.GetQuest).was.not_called()
+            assert.are_same({[1] = {"key"}}, QuestieTooltips.lookupKeysByQuestId)
+        end)
+    end)
+end)

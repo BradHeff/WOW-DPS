@@ -1,0 +1,336 @@
+local E, L, V, P, G = unpack(ElvUI)
+local UF = E:GetModule('UnitFrames')
+local LSM = E.Libs.LSM
+
+local next = next
+local ipairs = ipairs
+local strfind = strfind
+
+local CreateFrame = CreateFrame
+local WrapString = C_StringUtil.WrapString
+local GetAuraApplicationDisplayCount = C_UnitAuras.GetAuraApplicationDisplayCount
+
+local StatusBarInterpolation = Enum.StatusBarInterpolation
+
+local DebuffColors = E.Libs.Dispel:GetDebuffTypeColor()
+
+function UF:Construct_AuraBars(bar)
+	bar:CreateBackdrop(nil, nil, nil, nil, true)
+	bar:SetScript('OnMouseDown', UF.Aura_OnClick)
+	bar:Point('LEFT')
+	bar:Point('RIGHT')
+
+	bar.spark:SetTexture(E.media.blankTex)
+	bar.spark:SetVertexColor(0.9, 0.9, 0.9, 0.6)
+	bar.spark:Width(2)
+
+	bar.icon:CreateBackdrop(nil, nil, nil, nil, true)
+	bar.icon:ClearAllPoints()
+	bar.icon:Point('RIGHT', bar, 'LEFT', -self.barSpacing, 0)
+	bar.icon:SetTexCoords()
+
+	UF.statusbars[bar] = 'aurabars'
+	UF:Update_StatusBar(bar)
+
+	-- we dont wanna format them in the cd module
+	bar.Cooldown:SetDrawSwipe(false)
+	bar.Cooldown:SetDrawBling(false)
+	bar.Cooldown:SetHideCountdownNumbers(true)
+	bar.Cooldown:SetEdgeTexture(E.Media.Textures.Invisible)
+
+	E:RegisterCooldown(bar.Cooldown, 'aurabars')
+
+	UF:Configure_FontString(bar.nameText)
+
+	UF:AuraBars_UpdateBar(bar)
+
+	bar.nameText:SetJustifyH('LEFT')
+	bar.nameText:SetJustifyV('MIDDLE')
+	bar.nameText:SetWordWrap(false)
+
+	bar.bg = bar:CreateTexture(nil, 'BORDER')
+	bar.bg:Show()
+end
+
+function UF:AuraBars_UpdateBar(bar)
+	local bars = bar:GetParent()
+	bar.db = bars.db
+
+	if bars.db then
+		if E.Modern then
+			bar.smoothing = (bar.db.smoothbars and StatusBarInterpolation.ExponentialEaseOut) or StatusBarInterpolation.Immediate or nil
+		else
+			E:SetSmoothing(bar, bars.db.smoothbars)
+		end
+	end
+
+	bar:SetReverseFill(bars.reverseFill)
+	bar.spark:ClearAllPoints()
+	bar.spark:Point(bars.reverseFill and 'LEFT' or 'RIGHT', bar:GetStatusBarTexture())
+	bar.spark:Point('BOTTOM')
+	bar.spark:Point('TOP')
+
+	UF:Update_FontString(bar.nameText)
+end
+
+function UF:Construct_AuraBarHeader(frame)
+	if E.Modern then
+		local bars = E:Auras_Create(frame, 'AuraBars')
+		bars:SetFrameLevel(frame.RaisedElementParent.AuraBarLevel)
+
+		return bars
+	else
+		local bars = CreateFrame('Frame', '$parent_AuraBars', frame)
+		bars:SetFrameLevel(frame.RaisedElementParent.AuraBarLevel)
+		bars:SetSize(1, 1)
+
+		bars.PreSetPosition = UF.SortAuras
+		bars.PostCreateBar = UF.Construct_AuraBars
+		bars.PostUpdateBar = UF.PostUpdateBar_AuraBars
+		bars.CustomFilter = UF.AuraFilter
+
+		bars.sparkEnabled = true
+		bars.initialAnchor = 'BOTTOMRIGHT'
+		bars.type = 'aurabar'
+
+		return bars
+	end
+end
+
+function UF:AuraBars_UpdateFilter(bars, unit, force)
+	local previous = bars.filterLists
+	local current = UF:UnitIsFriendly(unit) and bars.friendlyFilter or bars.enemyFilter
+	if not force and (previous == current) then return end -- only update when needed
+
+	bars.filterLists = current -- save current
+
+	UF:GroupFilters(bars, current) -- build the groups
+
+	return true
+end
+
+function UF:Configure_AuraBars(frame)
+	local bars = frame.AuraBars
+	local db = frame.db and frame.db.aurabar
+	bars.db = db
+
+	if db.enable then
+		if not frame:IsElementEnabled('AuraBars') then
+			frame:EnableElement('AuraBars')
+		end
+
+		local below = db.anchorPoint == 'BELOW'
+		local detached = db.attachTo == 'DETACHED'
+		local debuffs = db.attachTo == 'DEBUFFS'
+		local buffs = db.attachTo == 'BUFFS'
+
+		bars.height = db.height
+		bars.maxBars = db.maxBars
+		bars.growth = below and 'DOWN' or 'UP'
+		bars.barSpacing = UF.thinBorders and 1 or 5
+		bars.spacing = db.spacing - (detached and 1 or 0)
+		bars.reverseFill = bars.db.reverseFill
+		bars.friendlyAuraType = db.friendlyAuraType
+		bars.enemyAuraType = db.enemyAuraType
+		bars.auraSort = UF.SortAuraFuncs[E.Modern and 'PLAYER' or db.sortMethod]
+		bars.tooltipAnchor = db.tooltipAnchorType
+		bars.tooltipAnchorX = db.tooltipAnchorX
+		bars.tooltipAnchorY = db.tooltipAnchorY
+		bars.customBackdropColor = UF.db.colors.customaurabarbackdrop and E:UpdateClassColor(UF.db.colors.aurabar_backdrop)
+
+		for _, bar in ipairs(bars) do
+			UF:AuraBars_UpdateBar(bar)
+		end
+
+		if not bars.Holder then
+			local holder = CreateFrame('Frame', nil, bars)
+			holder:Point('BOTTOM', frame, 'TOP', 0, 0)
+			bars.Holder = holder
+
+			if frame.unitframeType == 'player' then
+				E:CreateMover(holder, 'ElvUF_PlayerAuraMover', L["Player Aura Bars"], nil, nil, nil, 'ALL,SOLO', nil, 'unitframe,individualUnits,player,aurabar')
+			elseif frame.unitframeType == 'target' then
+				E:CreateMover(holder, 'ElvUF_TargetAuraMover', L["Target Aura Bars"], nil, nil, nil, 'ALL,SOLO', nil, 'unitframe,individualUnits,target,aurabar')
+			elseif frame.unitframeType == 'pet' then
+				E:CreateMover(holder, 'ElvUF_PetAuraMover', L["Pet Aura Bars"], nil, nil, nil, 'ALL,SOLO', nil, 'unitframe,individualUnits,pet,aurabar')
+			elseif frame.unitframeType == 'focus' then
+				E:CreateMover(holder, 'ElvUF_FocusAuraMover', L["Focus Aura Bars"], nil, nil, nil, 'ALL,SOLO', nil, 'unitframe,individualUnits,focus,aurabar')
+			end
+		end
+
+		local attachTo, xOffset, yOffset = frame
+		local BORDER = UF.BORDER + UF.SPACING
+		if detached then
+			attachTo = bars.Holder
+		elseif buffs then
+			attachTo = frame.Buffs
+		elseif debuffs then
+			attachTo = frame.Debuffs
+		elseif db.attachTo == 'PLAYER_AURABARS' then
+			attachTo = UF.units.player.AuraBars
+			xOffset = 0
+		end
+
+		local px = UF.thinBorders and 0 or 2
+		local POWER_OFFSET, BAR_WIDTH = 0
+		if detached then
+			E:EnableMover(bars.Holder.mover.name)
+			BAR_WIDTH = db.detachedWidth
+
+			yOffset = below and BORDER or -(db.height + px)
+
+			bars.Holder:Size(db.detachedWidth, db.height + (BORDER * 2))
+		else
+			E:DisableMover(bars.Holder.mover.name)
+			BAR_WIDTH = frame.UNIT_WIDTH
+
+			local offset = db.yOffset + px
+			yOffset = (below and -(db.height + offset) or offset) + 1 -- 1 is connecting pixel
+
+			if db.attachTo ~= 'FRAME' then
+				POWER_OFFSET = frame.POWERBAR_OFFSET
+
+				if frame.ORIENTATION == 'MIDDLE' then
+					POWER_OFFSET = POWER_OFFSET * 2
+				end
+			end
+		end
+
+		bars.width = E:Scale(BAR_WIDTH - (BORDER * 4) - bars.height - POWER_OFFSET + 1) -- 1 is connecting pixel
+		bars:ClearAllPoints()
+
+		if not E.Modern then
+			bars:Show()
+		end
+
+		local p1 = below and 'BOTTOM' or 'TOP'
+		local p2 = detached and p1 or (buffs or debuffs) and attachTo.anchorPoint or 'TOPLEFT'
+		if p2 == 'TOP' or p2 == 'BOTTOM' then
+			bars.initialAnchor = 'BOTTOM'
+			bars:Point(p2, attachTo, p2, (bars.height * 0.5) + -(detached and px or UF.BORDER), yOffset)
+		else
+			local right = strfind(p2, 'RIGHT')
+			local p3, p4 = below and 'TOP' or 'BOTTOM', right and 'RIGHT' or 'LEFT'
+			bars.initialAnchor = 'BOTTOM'..p4
+			bars:Point(p3..p4, attachTo, p1..p4, xOffset or (right and -(BORDER * 2)) or (bars.height + UF.BORDER), yOffset)
+		end
+
+		if E.Modern then
+			bars.isAuraBar = true
+			bars.size = db.height
+			bars.numAuras = db.maxBars
+			bars.maxFrameCount = db.maxBars
+			bars.lineSpacing = bars.spacing
+			bars.smoothbars = db.smoothbars
+			bars.isTransparent = UF.db.colors.transparentAurabars -- always on for now
+			bars.invertAurabars = UF.db.colors.invertAurabars
+			bars.sortMethod = E.AuraContainerSortMethod[db.sortMethod]
+			bars.sortDirection = E.AuraContainerSortDirection[db.sortDirection]
+			bars.statusbarTexture = LSM:Fetch('statusbar', UF.db.statusbar)
+			bars.countPosition, bars.countXOffset, bars.countYOffset = db.countPosition, db.countXOffset, db.countYOffset
+			bars.countFont, bars.countFontSize, bars.countFontOutline = db.countFont, db.countFontSize, db.countFontOutline
+			bars.textFont, bars.textFontSize, bars.textFontOutline = UF.db.font, UF.db.fontSize, UF.db.fontOutline
+			bars.friendlyFilter = db.friendlyFilter.filterLists
+			bars.enemyFilter = db.enemyFilter.filterLists
+			bars.noMouse = db.clickThrough
+			bars.forceShowAuras = frame.forceShowAuras
+			bars.allowEnable = true -- keep over Auras_GroupUnit
+
+			UF:AuraBars_UpdateFilter(bars, frame.__unit, true)
+
+			local known = next(bars.known) -- new groups update their buttons in initializeFrame
+
+			E:Auras_GroupUnit(bars, frame.__unit)
+			E:Auras_SetContainer(bars)
+			E:Auras_SetLineSize(bars)
+
+			if known then
+				E:Auras_UpdateButtons(bars)
+			end
+		else
+			bars.disableMouse = db.clickThrough
+
+			E:UpdateClassColor(UF.db.colors.auraBarBuff)
+			E:UpdateClassColor(UF.db.colors.auraBarDebuff)
+
+			bars.filterList = UF:ConvertFilters(bars, db.priority)
+		end
+	else
+		if frame:IsElementEnabled('AuraBars') then
+			frame:DisableElement('AuraBars')
+		end
+
+		if E.Modern then
+			bars.allowEnable = false
+		end
+
+		bars:Hide()
+	end
+end
+
+local GOTAK_ID = 86659
+local GOTAK = E:GetSpellInfo(GOTAK_ID)
+function UF:PostUpdateBar_AuraBars(unit, bar, _, _, _, _, debuffType) -- unit, bar, index, position, duration, expiration, debuffType, isStealable
+	local spellName, color = E:NotSecretValue(bar.spell) and bar.spell or nil
+
+	if not E.Modern then
+		local spellID = E:NotSecretValue(bar.spellID) and bar.spellID or nil
+		local auraColor = E.global.unitframe.AuraBarColors[spellID]
+		color = auraColor and auraColor.enable and auraColor.color
+
+		if not color then
+			local turtle = E.db.unitframe.colors.auraBarTurtle and (E.global.unitframe.aurafilters.TurtleBuffs.spells[spellID] or E.global.unitframe.aurafilters.TurtleBuffs.spells[spellName])
+			local gotak = spellName ~= GOTAK or (spellName == GOTAK and spellID == GOTAK_ID)
+			if turtle and gotak then
+				color = E.db.unitframe.colors.auraBarTurtleColor
+			end
+		end
+	end
+
+	local isDebuff, colors = bar.filter == 'HARMFUL', UF.db.colors
+	if not color and colors.auraBarByType and isDebuff then
+		if E.Modern then
+			color = UF:GetAuraCurve(unit, bar, bar.aura)
+		elseif not debuffType or (debuffType == '' or debuffType == 'None') then
+			color = colors.auraBarDebuff -- debuffType is None here when secret
+		else
+			color = DebuffColors[debuffType]
+		end
+	end
+
+	if not color then
+		color = (isDebuff and colors.auraBarDebuff) or colors.auraBarBuff
+	end
+
+	bar.custom_backdrop = self.customBackdropColor
+
+	local text = self.db and self.db.abbrevName and spellName and E.TagFunctions.Abbrev(spellName)
+	if text then -- this is a copy from oUF we just change the text
+		if E:IsSecretValue(bar.count) then
+			if bar.aura then
+				local minCount, maxCount = 2, 999
+				local count = GetAuraApplicationDisplayCount(bar.__unit, bar.aura.auraInstanceID, minCount, maxCount)
+				bar.nameText:SetFormattedText('%s%s', count and WrapString(count, '[', '] ') or '', text)
+			else
+				bar.nameText:SetText(text)
+			end
+		elseif bar.count > 1 then
+			bar.nameText:SetFormattedText('[%d] %s', bar.count, text)
+		else
+			bar.nameText:SetText(text)
+		end
+	end
+
+	if bar.bg then
+		if (bar.invertColors ~= colors.invertAurabars) or ((colors.transparentAurabars and not bar.isTransparent) or (bar.isTransparent and not colors.transparentAurabars)) then
+			UF:ToggleTransparentStatusBar(colors.transparentAurabars, bar, bar.bg, true, colors.invertAurabars)
+		elseif not bar.bg:GetTexture() then -- first bar update, ToggleTransparentStatusBar handles the anchors after that
+			UF:Update_StatusBar(bar.bg, colors.transparentAurabars and E.media.blankTex or LSM:Fetch('statusbar', UF.db.statusbar))
+			UF:SetStatusBarBackdropPoints(bar, bar:GetStatusBarTexture(), bar.bg, bar:GetOrientation())
+		end
+	end
+
+	if color then
+		UF:SetStatusBarColor(bar, color.r, color.g, color.b)
+	end
+end

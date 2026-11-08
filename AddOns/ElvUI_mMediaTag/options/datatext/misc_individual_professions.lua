@@ -1,0 +1,37 @@
+local mMT, DB, M, E, P, L, MEDIA = unpack(ElvUI_mMediaTag)
+local DT = E:GetModule("DataTexts")
+
+mMT.options.args.datatexts.args.menus.args.misc_individual_professions.args = {
+	icon = {
+		order = 1,
+		type = "group",
+		inline = true,
+		name = L["Icon"],
+		args = {
+			style = {
+				order = 1,
+				type = "select",
+				name = L["Icon Style"],
+				get = function(info)
+					return E.db.mMediaTag.datatexts.individual_professions.icon
+				end,
+				set = function(info, value)
+					E.db.mMediaTag.datatexts.individual_professions.icon = value
+					DT:ForceUpdate_DataText("mMT - Cooking")
+					DT:ForceUpdate_DataText("mMT - Fishing")
+					DT:ForceUpdate_DataText("mMT - Archaeology")
+					DT:ForceUpdate_DataText("mMT - Primary Professions")
+					DT:ForceUpdate_DataText("mMT - Secondary Professions")
+				end,
+				values = {
+					none = L["None"],
+					default = L["Default"],
+					colored = L["Colored"],
+					white = L["White"],
+					profession = L["Profession (White)"],
+					profession_colored = L["Profession (Colored)"],
+				},
+			},
+		},
+	},
+}

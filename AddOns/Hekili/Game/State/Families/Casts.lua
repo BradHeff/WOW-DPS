@@ -1,0 +1,636 @@
+-- Game/State/Families/Casts.lua
+-- The casts family (spec §6.2): the tracked abilities, our casts and channels in progress, cooldown ready times
+-- snapped to the game's plain ready flags (the constrain step), charges, the GCD from its flag edges with
+-- bit-identical start and duration (spec §7.5), its length by GCD kind and the ability that opened it, the
+-- on-next-swing queue, and the Cooldown/Charges/Gcd accessors.
+-- Ported from Taco Dog Forever, src/TacoDogForever/Model/Belief/Casts.lua (step :34-78, Applier Cooldown :385,
+-- Queued :391) and src/TacoDogForever/Model/Belief.lua (constrain :652-684).
+
+local _, ns = ...
+local VS, I = ns.VirtualState, ns.VirtualStateInternal
+local Obs = VS.Obs
+local floor, ceil, abs, max = math.floor, math.ceil, math.abs, math.max
+
+-- By ability index a. `obj` is the spec's ability table (Hekili's `class.abilities[key]`): VirtualState reads its
+-- `spend`, `spendType`, `cooldown`, `charges`, `recharge`, `gcd`, `gcdTime`, `cast`, `onNextSwing` and `rangedSwing`
+-- (the ranged auto attack: its success is the ranged hand's shot, Families/Swing.lua) fields.
+local A = {
+    n = 0,
+    key = {},
+    id = {},
+    ids = {},
+    obj = {},
+    slot = {},
+    qid = {},
+    readCost = {},
+    multiCost = {},
+    ready0 = {},
+    cdLen = {},
+    castT = {},
+    flag = {},
+    charges0 = {},
+    next0 = {},
+    queued = {},
+    castStartT = {},
+    cd = {},
+    ch = {},
+    chNext = {},
+    gcdKind = {}, -- 0 off the GCD, 1 spell (1.5 s / haste), 2 totem (Hekili's fixed 1.0 s)
+    rMin = {}, -- the query ID's range in yards (C_Spell.GetSpellInfo's minRange/maxRange, Sources/Spellbook.lua);
+    rMax = {}, -- rMax 0: no range check (self-cast, or on-next-swing: the client answers those in range at any distance)
+}
+I.ab = A
+A.bySpell = {}
+
+-- Unknown, not ready, ready (the plain isActive flag as last reported).
+local UNKNOWN, NOT, YES = -1, 0, 1
+-- The plausible lengths a falling edge may teach, by kind: spell [1.0, 1.51), totem [0.9, 1.01). Haste only shortens a
+-- GCD and the totem kind's is 1.0; a longer fall is one seen late (the flag is read only on the next
+-- SPELL_UPDATE_COOLDOWN, any spell's: in game 1.85 was learned).
+-- shortcut: a fall seen late by under 0.01 s still teaches, and a hasted spell GCD can learn up to 1.5; upgrade by
+-- learning only below the haste default if a hasted class shows it.
+local GCD_MIN, GCD_MAX = { 1.0, 0.9 }, { 1.51, 1.01 }
+-- An own cast within this of the GCD's rising edge, before or after it, opened it (UNMEASURED until checkpoint G3).
+local GCD_EDGE = 0.1
+
+-- The cast or channel in progress (0: none), and the GCD fixed at its rising edge: its opener (ability index, 0
+-- none), the opener kind a GCD without one takes (the last opener's), whether GcdInfo has answered it, and the
+-- learned length by kind ({ spell, totem }, 0 unlearned).
+I.castAb, I.castEnd, I.channel = 0, 0, false
+I.gcdStart, I.gcdDur, I.gcdLearned = 0, 0, { 0, 0 }
+I.gcdOwner, I.gcdKindLast, I.gcdRead = 0, 1, false
+local lastGcdA, lastGcdT = 0, 0 -- the last own on-GCD CastSuccess no GCD has taken yet
+local gcdEdge = 0 -- the rising edge's own time (gcdStart is it quantised, up to 2^-11 s later)
+I.queuedStrike = false
+I.lastCastT = 0
+local gcd
+
+-- 2^-10 s: a start and a duration on this grid survive (start + duration) - duration exactly (spec §7.5).
+local Q = 1024
+local function quantise(x)
+    return floor(x * Q + 0.5) / Q
+end
+I.Quantise = quantise
+
+-- By pack function: true once it raised in the belief's context (the error counted once in I.nowErrors; it answers nil
+-- from then on); weak keys, cleared at each build (a rebuilt spec's functions are new).
+local failed = setmetatable({}, { __mode = "k" })
+I.OnBuild(function()
+    for f in pairs(failed) do
+        failed[f] = nil
+    end
+end)
+
+--- A pack function (a record's `cooldown`, `spend`, `gcdTime`, `usable`, an aura's `duration`, a resource's `max`,
+--- ... Engine/Schema/Tracked.lua) evaluated in the belief's `now` context at `t`: its `buff`, `talent`, `totem`,
+--- `settings`, ... are the belief's, so a cost that reads an aura's stacks is the cast's own, not the simulation's last
+--- reset's. Returns its value and true; nil and false when it raised (counted once). `retry`: a rare read (the build's,
+--- a combat edge's) runs it even after a raise, so a transient at login does not disable it until the next build; it
+--- clears on an answer. Allocates nothing once it has raised.
+function I.Eval(f, t, retry)
+    local raised = failed[f]
+    if raised and not retry then
+        return nil, false
+    end
+    local env = getfenv(f)
+    setfenv(f, I.nowCtx)
+    I.NowAt(t)
+    local ok, v = pcall(f)
+    setfenv(f, env)
+    if not ok then
+        if not raised then
+            failed[f] = true
+            I.nowErrors, I.nowError = (I.nowErrors or 0) + 1, v
+        end
+        return nil, false
+    end
+    if raised then
+        failed[f] = nil
+    end
+    return v, true
+end
+
+-- Ability a's declared `gcdTime` at t: a number, or a function's answer in the belief's context (its static when it
+-- raised); nil when none. Allocates nothing.
+local function gcdTime(a, t)
+    local g = A.obj[a].gcdTime
+    if type(g) == "function" then
+        local ok
+        g, ok = I.Eval(g, t)
+        if not ok then -- a raise only: a working function's nil is its answer
+            local obj = A.obj[a]
+            g = obj.static and obj.static.gcdTime
+        end
+    end
+    return g
+end
+
+--- The length of a GCD that ability a (0: none known, the last opener's kind) opens at t: its declared `gcdTime`,
+--- else its kind's learned length, else 1.0 for the totem kind and max(1.0, 1.5 / spell haste) for the spell kind. Allocates nothing.
+function I.GcdLen(a, t)
+    local kind = I.gcdKindLast
+    if a > 0 then
+        local g = gcdTime(a, t)
+        if type(g) == "number" and g > 0 then
+            return g
+        end
+        kind = A.gcdKind[a]
+    end
+    if kind == 0 then
+        return 0
+    elseif I.gcdLearned[kind] > 0 then
+        return I.gcdLearned[kind]
+    elseif kind == 2 then
+        return 1.0
+    end
+    -- spell haste (UnitSpellHaste %, plain), never melee haste: attack speed does not shorten a GCD on Forever
+    local h = VS.SpellHaste and VS.SpellHaste(t).est or 0
+    return max(1.0, 1.5 / (1 + (h > 0 and h or 0) / 100)) -- 1 + h/100 >= 1: h > 0 checked
+end
+
+local function maxCharges(a)
+    local c = A.obj[a].charges
+    return type(c) == "number" and c or 1
+end
+
+-- By resource slot: the base power a cost between 0 and 1 is a fraction of, as the client prices a percent-of-base cost
+-- (floored): the pack's `base` (its level's value; the meta field, Engine/Schema/Spec.lua) until a plain cost read
+-- teaches it (I.LearnBases); 0 for a pool without one, whose fractions are of its maximum (Hekili's pricing).
+I.basePow, I.baseDefault = {}, {}
+local EPS = 1e-6 -- a float product a hair under a whole cost (0.05 x 1240) floors to it, not below
+
+I.OnBuild(function(def, now)
+    for k in pairs(A.bySpell) do
+        A.bySpell[k] = nil
+    end
+    for r = 1, #def.resources do
+        local b = def.resources[r].base
+        I.baseDefault[r] = type(b) == "number" and b > 0 and b or 0
+        I.basePow[r] = I.baseDefault[r]
+    end
+    local list = def.abilities
+    A.n = #list
+    for a = 1, A.n do
+        local obj = list[a]
+        A.key[a], A.obj[a] = obj.key, obj
+        local ids = def.abilityIds[a]
+        A.ids[a], A.id[a] = ids, ids[1]
+        for k = 1, #ids do
+            A.bySpell[ids[k]] = a
+        end
+        A.slot[a] = def.abilitySlot[a]
+        A.qid[a], A.readCost[a], A.multiCost[a] = ids[1], 0, false
+        A.ready0[a], A.cdLen[a], A.castT[a], A.flag[a] = 0, 0, 0, UNKNOWN
+        A.charges0[a], A.next0[a] = maxCharges(a), 0
+        A.queued[a], A.castStartT[a] = false, 0
+        A.rMin[a], A.rMax[a] = 0, 0
+        local g, extra = obj.gcd, type(obj.key) == "string" and obj.key:sub(1, 6) == "track_" -- a passive: no GCD
+        A.gcdKind[a] = (g == "off" or extra) and 0 or (g == "totem" and 2 or 1) -- anything else: State.lua's "spell"
+        A.cd[a] = I.NewBelief("cooldown " .. tostring(obj.key))
+        I.Sample(A.cd[a], "default", 0, now, 0)
+        if maxCharges(a) > 1 then
+            A.ch[a] = I.NewBelief("charges " .. tostring(obj.key))
+            A.chNext[a] = I.NewBelief("charge next " .. tostring(obj.key))
+            I.Sample(A.ch[a], "default", maxCharges(a), now, 0)
+        else
+            A.ch[a], A.chNext[a] = false, false
+        end
+    end
+    I.TRACKED.ability = A.id
+    gcd = I.NewBelief("gcd")
+    I.castAb, I.castEnd, I.channel, I.gcdStart, I.gcdDur, I.queuedStrike = 0, 0, false, 0, 0, false
+    I.gcdOwner, I.gcdKindLast, I.gcdRead, lastGcdA, lastGcdT = 0, 1, false, 0, 0
+end)
+
+-- The GCD's current sample at its fixed end.
+local function pinGcd(t)
+    local e = I.gcdStart + I.gcdDur
+    gcd.est, gcd.lo, gcd.hi = e, e, e
+    I.Sample(gcd, "pinned", e, t, Obs.Cooldown)
+end
+
+-- An own cast of on-GCD ability a at time `at`: it claims an ownerless GCD that rose within GCD_EDGE before it (the
+-- edge came first), re-fixing the duration only while GcdInfo has not answered this GCD (spec §7.5); else it opens a
+-- GCD of its own length at `at`, and a rising edge within GCD_EDGE after it re-fixes it there. Forever fires no
+-- SPELL_UPDATE_COOLDOWN at a GCD's end, so the flag stays up between chained GCDs and their rising edges never come.
+local function opener(a, at, t)
+    if A.gcdKind[a] == 0 then
+        return -- off the GCD (an on-next-swing strike's success at its swing): never an opener
+    end
+    if I.gcdStart > 0 and I.gcdOwner == 0 and at >= gcdEdge and at - gcdEdge <= GCD_EDGE then
+        I.gcdOwner, I.gcdKindLast = a, A.gcdKind[a]
+        if not I.gcdRead then
+            I.gcdDur = quantise(I.GcdLen(a, t))
+            pinGcd(t)
+        end
+        lastGcdA = 0
+    else
+        lastGcdA, lastGcdT = a, at
+        I.gcdOwner, I.gcdKindLast, I.gcdRead = a, A.gcdKind[a], false
+        -- no pinned sample: the gcd belief's modelled one is Families/Now.lua's, and only an edge pins it
+        I.gcdStart, I.gcdDur, gcdEdge = quantise(at), quantise(I.GcdLen(a, t)), at
+    end
+end
+
+I.On(Obs.CastStart, function(o, t)
+    I.castAb, I.castEnd, I.channel = o.a, o.b, false
+    A.castStartT[o.a] = o.t
+    opener(o.a, o.t, t)
+end)
+
+I.On(Obs.CastDelay, function(o)
+    if I.castAb == o.a then
+        I.castEnd = o.b
+    end
+end)
+
+I.On(Obs.CastSuccess, function(o, t)
+    I.lastCastT = o.t
+    if I.castAb == o.a and not I.channel then
+        I.castAb = 0
+    elseif A.castStartT[o.a] == 0 then -- a hard cast's GCD opened at its start
+        opener(o.a, o.t, t)
+    end
+    if A.obj[o.a].onNextSwing then
+        A.queued[o.a] = false
+    end
+end)
+
+I.On(Obs.CastStop, function(o)
+    if I.castAb == o.a then
+        I.castAb = 0
+    end
+    A.castStartT[o.a] = 0 -- an interrupted cast's start is no GCD anchor for the next one (Families/Now.lua)
+end)
+
+I.On(Obs.ChannelStart, function(o, t)
+    I.castAb, I.castEnd, I.channel = o.a, o.b, true
+    A.castStartT[o.a] = o.t
+    opener(o.a, o.t, t)
+end)
+
+I.On(Obs.ChannelUpdate, function(o)
+    if I.castAb == o.a then
+        I.castEnd = o.b
+    end
+end)
+
+I.On(Obs.ChannelStop, function(o)
+    if I.castAb == o.a then
+        I.castAb, I.channel = 0, false
+    end
+end)
+
+I.On(Obs.Queued, function(o)
+    A.queued[o.a] = o.b == 1
+    local any = false
+    for a = 1, A.n do
+        if A.queued[a] then
+            any = true
+        end
+    end
+    I.queuedStrike = any
+end)
+
+-- The plain flags (spec §6.2): an ability's ready edge, or (a = 0, c = 1) the GCD's edge.
+I.On(Obs.Cooldown, function(o, t)
+    if o.c == 1 then
+        if o.b == 1 then
+            -- the GCD began: its opener is the cast in progress or an own cast just before the edge; start and
+            -- duration fixed until the falling edge (spec §7.5), but a later opener's claim before GcdInfo's first read
+            local owner = 0
+            if I.castAb > 0 and A.gcdKind[I.castAb] > 0 then
+                owner = I.castAb
+            elseif lastGcdA > 0 and abs(o.t - lastGcdT) <= GCD_EDGE then
+                owner = lastGcdA
+            end
+            lastGcdA = 0
+            I.gcdOwner, I.gcdRead = owner, false
+            if owner > 0 then
+                I.gcdKindLast = A.gcdKind[owner]
+            end
+            I.gcdStart, I.gcdDur, gcdEdge = quantise(o.t), quantise(I.GcdLen(owner, t)), o.t
+            pinGcd(t)
+        elseif I.gcdStart > 0 and abs(o.t - gcdEdge) <= GCD_EDGE then
+            -- a fall at the current GCD's opening is the last one's, seen late (read only on the next press's
+            -- SPELL_UPDATE_COOLDOWN): it neither ends this one nor teaches a length
+        else
+            local len, owner = o.t - I.gcdStart, I.gcdOwner
+            local kind = owner > 0 and A.gcdKind[owner] or 0
+            local g = owner > 0 and gcdTime(owner, t)
+            -- an ownerless GCD, or one of a declared length, teaches nothing
+            if I.gcdStart > 0 and kind > 0 and not (type(g) == "number" and g > 0) then
+                if len >= GCD_MIN[kind] and len < GCD_MAX[kind] then
+                    I.gcdLearned[kind] = quantise(len)
+                end
+            end
+            I.gcdStart, I.gcdDur, I.gcdOwner, I.gcdRead = 0, 0, 0, false
+            gcd.est, gcd.lo, gcd.hi = o.t, o.t, o.t
+            I.Sample(gcd, "pinned", o.t, t, Obs.Cooldown)
+        end
+        return
+    end
+    local a = o.a
+    local was = A.flag[a]
+    A.flag[a] = o.b == 1 and YES or NOT
+    if o.b == 1 and was == NOT and A.castT[a] > 0 and o.t > A.castT[a] then
+        -- a ready edge after our cast teaches the real length (talents included), but only near the registered one:
+        -- a flag that also tracks something else (a kill window's usability) would teach minutes
+        local len, reg = o.t - A.castT[a], I.CooldownOf(a, o.t)
+        if reg <= 0 or abs(len - reg) <= max(1, reg * 0.1) then
+            A.cdLen[a] = len
+        end
+    end
+end)
+
+-- The standing flags at `now` (TDF constrain): ready pulls a later ready time back to now (and restores a charge);
+-- not ready pushes an earlier one to at least now + CD_PROBE, but keeps a modelled end the flag agrees with while the
+-- GCD's or a hard cast's end (`busy`) covers it (gap CQ: the push froze the wait at 0.5 for a cooldown's last polls, so
+-- a filler showed for the poll the GCD or cast ended on). No press lands before `busy`, and the flag is read again
+-- there; only for an ability on the GCD (an off-GCD or on-next-swing one presses during it). Uncovered, the probe
+-- stands as before: a free GCD (the loops' grid ends a ulp after the tick), a modelled end
+-- already past (the model may be short), or one within READY with `busy` within READY too (a press would meet the
+-- client's no, 4bd02bde0). A probe already pushed is no modelled end: re-pushed, not counted down.
+I.OnSettle(function(now)
+    local busy = I.gcdStart > 0 and I.gcdStart + I.gcdDur or 0 -- the end no press lands before (0: none)
+    if I.castAb > 0 and not I.channel and I.castEnd > busy then
+        busy = I.castEnd
+    end
+    local held = busy > now + I.CAP_WAIT -- no press this poll
+    for a = 1, A.n do
+        local flag = A.flag[a]
+        if flag == YES then
+            if A.ready0[a] > now then
+                A.ready0[a] = now
+                I.Sample(A.cd[a], "pinned", now, now, Obs.Cooldown)
+            end
+            if A.ch[a] and A.charges0[a] < 1 then
+                A.charges0[a] = 1
+            end
+        elseif flag == NOT then
+            local probe = now + I.CD_PROBE
+            if A.ch[a] then
+                A.charges0[a] = 0
+                if A.next0[a] < probe then
+                    A.next0[a] = probe
+                end
+            elseif
+                A.ready0[a] < probe
+                and (
+                    A.cd[a].basis ~= "modelled"
+                    or A.gcdKind[a] == 0
+                    or A.obj[a].onNextSwing
+                    or A.ready0[a] <= now - I.EPS
+                    or A.ready0[a] > busy + I.EPS
+                    or (A.ready0[a] <= now + I.CAP_WAIT and not held)
+                )
+            then
+                A.ready0[a] = probe
+                I.Sample(A.cd[a], "pinned", probe, now, Obs.Cooldown)
+            end
+        end
+    end
+end)
+
+--- Our own cast set ability a's cooldown (spec §5.3): ready time `expires`, length `duration`. Allocates nothing.
+function I.CooldownModel(a, expires, duration, t, event)
+    A.ready0[a], A.castT[a] = expires, t
+    if A.cdLen[a] == 0 and duration > 0 then
+        A.cdLen[a] = duration
+    end
+    I.Sample(A.cd[a], "modelled", expires, t, event)
+end
+
+--- Our own cast spent a charge (spec §5.3). Allocates nothing.
+function I.ChargesModel(a, charges, nextAt, t, event)
+    if A.ch[a] then
+        A.charges0[a], A.next0[a], A.castT[a] = charges, nextAt, t
+        I.Sample(A.ch[a], "modelled", charges, t, event)
+        I.Sample(A.chNext[a], "modelled", nextAt, t, event)
+    end
+end
+
+--- Our own cast started the GCD (spec §5.3): its end as a `modelled` sample. Allocates nothing.
+function I.GcdModel(expires, t, event)
+    gcd.est, gcd.lo, gcd.hi = expires, expires, expires
+    I.Sample(gcd, "modelled", expires, t, event)
+end
+
+--- What our cast success `o` of ability a paid: the cost priced when it was heard (Sources/Casts.lua: `o.b`, with
+--- `o.c` 1), else I.CostOf(a) now. Allocates nothing.
+function I.CastCost(o, a)
+    if o.c == 1 then
+        return o.b
+    end
+    return I.CostOf(a)
+end
+
+--- The cost the ladder uses for ability a: the spec's `spend` (decision 2), a number or a function bound to `state`
+--- (Hekili's ability table already evaluates a function `spend` on access; a raw one is called here). The plain
+--- out-of-combat read (`readCost`, Sources/Spellbook.lua) only confirms it, in Snapshot(): its units are the client's.
+function I.CostOf(a)
+    local c = I.BaseCostOf(a)
+    if I.CostMod then
+        c = I.CostMod(a, A.slot[a], c, I.clock) -- the resource's cost modifiers in scope (Families/Modifiers.lua)
+    end
+    return c
+end
+
+-- Ability a's declared cost as written (a fraction stays one), or nil: a function in the belief's context, its static
+-- value only if it raised (Engine/Schema/Tracked.lua). Allocates nothing.
+local function declaredCost(a)
+    local obj = A.obj[a]
+    local c = obj.spend
+    if type(c) == "function" then
+        local ok
+        c, ok = I.Eval(c, I.clock)
+        if not ok then
+            c = obj.static and obj.static.spend
+        end
+    end
+    return type(c) == "number" and c or nil
+end
+
+-- Whether declared cost c of ability a is a fraction of base power: any c > 0 when the ability declares
+-- `spendBase = true`, else 0 < c < 1 (the simulation's ns.SpendPoints, Engine/Sim/State.lua). Allocates nothing.
+local function isFraction(a, c)
+    return c > 0 and (c < 1 or A.obj[a].spendBase)
+end
+
+--- Ability a's declared cost, before any cost modifier (0 when it has none); a fraction (isFraction: below 1, or any
+--- magnitude under `spendBase`) is of its pool's base power, floored (I.basePow), else of its believed maximum, as
+--- Hekili's simulation prices it (ns.SpendPoints). Allocates nothing.
+function I.BaseCostOf(a)
+    local c, r = declaredCost(a), A.slot[a]
+    if not c then
+        return 0
+    end
+    if r > 0 and isFraction(a, c) then
+        local b = I.basePow[r] or 0
+        c = b > 0 and floor(c * b + EPS) or c * I.res.max[r]
+    end
+    return c
+end
+
+--- (spec §3.1) The base power a fraction cost of power type `pt` is priced from, or nil when its pool has none (the
+--- simulation's ns.FractionCost then prices it from the maximum, as Hekili does). Allocates nothing.
+function VS.BasePower(pt)
+    local r = I.res.slotOf[pt]
+    local b = r and I.basePow[r]
+    return b and b > 0 and b or nil
+end
+
+--- Each pool's base from the plain out-of-combat cost reads (A.readCost, Sources/Spellbook.lua) of its fraction-priced
+--- abilities: the pack's value unless the read with the largest fraction (the finest: a read pins the base to within
+--- 1 / f) misprices it, then the least whole base that floors to that read. A read is skipped while a cost modifier in
+--- scope changes its price (it is then not the base's). Runs after the reads and again after a talent walk that changed
+--- a rank (Sources/Talents.lua), so a talent-scaled fraction is the walked rank's. Allocates nothing.
+-- shortcut: the base is exact only to 1 / f of the chosen read (a 55% read: within 2 mana); a smaller fraction's read
+-- the result misprices by one is not reconciled; upgrade by intersecting every read's [cost / f, (cost + 1) / f).
+function I.LearnBases()
+    for r = 1, #I.baseDefault do
+        I.basePow[r] = I.baseDefault[r]
+    end
+    for r = 1, #I.baseDefault do
+        if I.basePow[r] > 0 then
+            local bestF, bestCost = 0, 0
+            for a = 1, A.n do
+                local cost = A.readCost[a]
+                if A.slot[a] == r and cost > 0 then
+                    local f = declaredCost(a)
+                    if f and f > bestF and isFraction(a, f) and I.CostOf(a) == I.BaseCostOf(a) then
+                        bestF, bestCost = f, cost
+                    end
+                end
+            end
+            if bestF > 0 and floor(bestF * I.basePow[r] + EPS) ~= bestCost then
+                I.basePow[r] = ceil(bestCost / bestF - EPS) -- bestF > 0 checked
+            end
+        end
+    end
+end
+
+--- Ability a's declared cooldown at `t` (0 when it has none): a function evaluated in the belief's context, as
+--- BaseCostOf prices a cost (its static value when it raised there, Engine/Schema/Tracked.lua), so a talent or an aura
+--- that changes it is the belief's own. Allocates nothing.
+function I.CooldownOf(a, t)
+    local obj = A.obj[a]
+    local c = obj.cooldown
+    if type(c) == "function" then
+        local ok
+        c, ok = I.Eval(c, t)
+        if not ok then
+            c = obj.static and obj.static.cooldown
+        end
+    end
+    return type(c) == "number" and c or 0
+end
+
+local function ageConf(rec, now)
+    local last = rec.last
+    local t = last.observed.t
+    if last.pinned.t > t then
+        t = last.pinned.t
+    end
+    if last.modelled.t > t then
+        t = last.modelled.t
+    end
+    local age = now - t
+    if age < 0 then
+        age = 0
+    end
+    rec.conf = 1 / (1 + age / I.AURA_HALF_LIFE) -- nonzero: 1 + age >= 1
+end
+I.AgeConf = ageConf
+
+--- (spec §3.2) The believed ready time of a tracked spell (absolute), or nil for an untracked one.
+function VS.Cooldown(spellID, now)
+    local a = A.bySpell[spellID]
+    if not a then
+        return nil
+    end
+    local rec, ready = A.cd[a], A.ready0[a]
+    rec.est, rec.lo, rec.hi = ready, ready, ready
+    ageConf(rec, now)
+    return rec
+end
+
+--- (spec §3.1) Seconds: the length learned from the last observed cooldown, else the spec's `cooldown`.
+function VS.CooldownLength(spellID)
+    local a = A.bySpell[spellID]
+    if not a then
+        return 0
+    end
+    if A.cdLen[a] > 0 then
+        return A.cdLen[a]
+    end
+    return I.CooldownOf(a, I.clock)
+end
+
+--- (spec §3.2) Two Beliefs, current charges and the next charge's time; nil for a spell without charges.
+function VS.Charges(spellID, now)
+    local a = A.bySpell[spellID]
+    if not a or not A.ch[a] then
+        return nil
+    end
+    local ch, nx = A.ch[a], A.chNext[a]
+    local c, nextAt = A.charges0[a], A.next0[a]
+    local max = maxCharges(a)
+    local recharge = A.obj[a].recharge
+    recharge = type(recharge) == "number" and recharge or 0
+    -- recharges the model expects by now
+    while c < max and nextAt > 0 and nextAt <= now do
+        c = c + 1
+        nextAt = c < max and nextAt + recharge or 0
+    end
+    ch.est, ch.lo, ch.hi = c, c, c
+    nx.est, nx.lo, nx.hi = nextAt, nextAt, nextAt
+    ageConf(ch, now)
+    ageConf(nx, now)
+    return ch, nx
+end
+
+--- (spec §3.2) The believed end of the GCD.
+function VS.Gcd(now)
+    ageConf(gcd, now)
+    return gcd
+end
+
+--- (spec §3.1, §7.5) start, duration of the current GCD as plain numbers fixed between its edges; 0, 0 when none.
+function VS.GcdInfo(now)
+    if I.gcdStart > 0 and I.gcdStart + I.gcdDur > now then
+        I.gcdRead = true -- answered: a later opener's claim no longer changes the duration
+        return I.gcdStart, I.gcdDur
+    end
+    return 0, 0
+end
+
+I.OnSnapshot(function(out, now)
+    out[#out + 1] = string.format(
+        "cast ab=%s end=%.2f channel=%s gcd=%.4f+%.4f learned=%.4f/%.4f owner=%s queued=%s",
+        I.castAb > 0 and tostring(A.key[I.castAb]) or "none",
+        I.castEnd,
+        tostring(I.channel),
+        I.gcdStart,
+        I.gcdDur,
+        I.gcdLearned[1],
+        I.gcdLearned[2],
+        I.gcdOwner > 0 and tostring(A.key[I.gcdOwner]) or "none",
+        tostring(I.queuedStrike)
+    )
+    for a = 1, A.n do
+        VS.Cooldown(A.id[a], now)
+        VS.Charges(A.id[a], now)
+        out[#out + 1] = string.format(
+            "ability %s qid=%d cost=%s read=%s len=%.2f flag=%d multi=%s",
+            tostring(A.key[a]),
+            A.qid[a],
+            tostring(I.CostOf(a)),
+            tostring(A.readCost[a]),
+            VS.CooldownLength(A.id[a]),
+            A.flag[a],
+            tostring(A.multiCost[a])
+        )
+    end
+    VS.Gcd(now)
+end)

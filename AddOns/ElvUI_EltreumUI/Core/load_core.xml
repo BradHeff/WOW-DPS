@@ -1,0 +1,16 @@
+<Ui xmlns="http://www.blizzard.com/wow/ui/">
+	<Script file='Compatibility.lua'/>
+	<Script file='Commands.lua'/>
+	<Script file='Core.lua'/>
+	<Script file='GetClassIcons.lua'/>
+	<Script file='Performance.lua'/>
+	<Script file='AddonSetup.lua'/>
+	<Script file='Install.lua'/>
+	<Script file='VersionCheck.lua'/>
+	<Script file='DatabaseConverter.lua'/>
+	<Script file='Changelog.lua'/>
+	<Script file='Auras.lua'/>
+	<Script file='SetupNameplates.lua'/>
+	<Script file='UpdateElvUISettings.lua'/>
+	<Script file='UpdateEltruismSettings.lua'/>
+</Ui>

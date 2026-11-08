@@ -1,0 +1,1387 @@
+local mMT, DB, M, E, P, L, MEDIA = unpack(ElvUI_mMediaTag)
+
+P.db_version = nil
+P.version = nil
+
+P.general = {
+	greeting_message = true,
+}
+
+P.keystone_to_chat = {
+	enable = false,
+}
+
+P.addon_manager = {
+	enable = false,
+	protect = true,
+	account = false,
+}
+
+P.data_panel_skin = {
+	enable = false,
+	panels = {},
+}
+
+P.skins = {
+	bugsack = {
+		enable = false,
+		version_label = true,
+	},
+	auctionator = {
+		enable = false,
+	},
+	premade_groups_filter = {
+		enable = false,
+		checkbox = {
+			size = 16,
+			color = {
+				mode = "original",
+				color = { r = 1, g = 0.82, b = 0, a = 0.8 },
+			},
+		},
+	},
+	aussyloot = {
+		enable = false,
+		color = {
+			mode = "value",
+			color = { r = 1, g = 0.82, b = 0, a = 1 },
+		},
+	},
+	bigwigs = {
+		enable = false,
+		keystones = true,
+		queue_timer = true,
+		texture_enable = false,
+		texture = "ElvUI Norm",
+		color = {
+			mode = "original",
+			color = { r = 1, g = 0.1, b = 0, a = 1 },
+		},
+	},
+}
+
+P.dice_button = {
+	enable = false,
+	color = {
+		normal = {
+			mode = "custom",
+			color = { r = 1, g = 1, b = 1, a = 0.75 },
+		},
+		hover = {
+			mode = "class",
+			color = { r = 1, g = 1, b = 1, a = 0.75 },
+		},
+	},
+	texture = "dice05",
+	size = 16,
+	dice_range_a = 100,
+	dice_range_b = 99,
+}
+
+P.lfg_invite_info = {
+	enable = false,
+	delay = 60,
+	keystones = true,
+	icon = "none",
+	style = "default",
+	theme = "class",
+	embed_icon = false,
+	background = false,
+	print = true,
+	animation = {
+		enable = true,
+		style = "slide",
+	},
+	text = {
+		font = "PT Sans Narrow",
+		size = 32,
+		size2 = 22,
+		size3 = 14,
+		fontFlag = "OUTLINE",
+	},
+	colors = {
+		line_a = "FFFFBF00",
+		line_b = "FF9AA0A5",
+		line_c = "FFA335EE",
+		theme = "FFFFC71A",
+	},
+}
+
+P.premade_filter = {
+	enable = false,
+	leader_score = false,
+	short_difficulty = false,
+	paused = false,
+	columns = 4,
+	theme = "class",
+	colors = {
+		theme = "FFFFBF00",
+		bar = "FFFFFFFF",
+		applied = "FFF2BF33",
+		declined = "FFE63333",
+		full = "FFFF8000",
+	},
+	categories = {},
+}
+
+P.group_keystones = {
+	enable = false,
+}
+
+P.keystone_teleports = {
+	enable = false,
+	duration = 5,
+	animation = true,
+	background = true,
+	title = true,
+	width = 260,
+	size = 26,
+	spacing = 2,
+	highlight = {
+		class = true,
+		color = "FFFFC71A",
+		flash = false,
+	},
+	text = {
+		font = "PT Sans Narrow",
+		size = 12,
+		fontFlag = "OUTLINE",
+	},
+}
+
+P.buff_reminder = {
+	enable = false,
+	world = false,
+	instances = {
+		party = true,
+		raid = true,
+		scenario = true,
+	},
+	threshold = 5,
+	entry = {
+		enable = true,
+		duration = 25,
+	},
+	animation = true,
+	hide_after = 0,
+	glow = {
+		enable = false,
+		color = "FFFFC71A",
+		lines = 8,
+		thickness = 2,
+	},
+	raid_buffs = {
+		enable = true,
+		own = false,
+		group = true,
+	},
+	flask = true,
+	food = true,
+	rune = true,
+	weapon = true,
+	class_buffs = true,
+	zones = {
+		raid_buffs = { world = true, party = true, raid = true, scenario = true },
+		flask = { world = true, party = true, raid = true, scenario = true },
+		food = { world = true, party = true, raid = true, scenario = true },
+		rune = { world = true, party = true, raid = true, scenario = true },
+		weapon = { world = true, party = true, raid = true, scenario = true },
+		class_buffs = { world = true, party = true, raid = true, scenario = true },
+	},
+	direction = "HORIZONTAL",
+	size = 36,
+	spacing = 4,
+	text = {
+		enable = true,
+		font = "PT Sans Narrow",
+		size = 12,
+		fontFlag = "OUTLINE",
+		color = "FFFFFFFF",
+	},
+}
+
+P.difficulty_info = {
+	enable = false,
+	background = false,
+	text = {
+		font = "PT Sans Narrow",
+		size = 12,
+		fontFlag = "OUTLINE",
+		justify = "CENTER",
+	},
+}
+
+P.objective_tracker = {
+	enable = false,
+	text = {
+		font = "PT Sans Narrow",
+		fontFlag = "OUTLINE",
+		justify = "LEFT",
+		hideDash = false,
+		size = {
+			header = 15,
+			title = 13,
+			text = 12,
+		},
+	},
+	colors = {
+		header = { class = true, color = "FFFFC700" },
+		title = { class = false, color = "FFFFC700", difficulty = false },
+		text = { class = false, color = "FFDEDEDE" },
+		complete = { class = false, color = "FF00FF45" },
+	},
+	headerbar = {
+		enable = true,
+		class = true,
+		color = "FF0294FF",
+		texture = "ElvUI Norm",
+		gradient = true,
+		height = 5,
+		mainHeader = false,
+		border = true,
+	},
+	bg = {
+		enable = false,
+		transparent = true,
+		classBorder = false,
+	},
+	progress = {
+		enable = true,
+		good = { class = false, color = "FF40FF6E" },
+		transit = { class = false, color = "FFFFA10D" },
+		bad = { class = false, color = "FFEB751A" },
+	},
+	bars = {
+		enable = true,
+		texture = "ElvUI Norm",
+		progressColor = true,
+		color = { class = false, color = "FF0294FF" },
+	},
+}
+
+P.death_counter = {
+	enable = false,
+	background = false,
+	text = {
+		font = "PT Sans Narrow",
+		size = 12,
+		fontFlag = "OUTLINE",
+	},
+}
+
+P.prey_hunt = {
+	enable = false,
+	ready = false,
+	gossip = false,
+	gossip_color = "FF808080",
+	format = "stage",
+	color = "FFFFFFFF",
+	point = "BOTTOM",
+	x = 0,
+	y = 4,
+	text = {
+		font = "PT Sans Narrow",
+		size = 12,
+		fontFlag = "OUTLINE",
+	},
+}
+
+P.datatexts = {
+	text = {
+		override_text = true,
+		text = "FFFFFFFF",
+		override_value = false,
+		value = "FFFFFFFF",
+	},
+	score = {
+		group_keystones = true,
+		show_upgrade = true,
+		sort_method = "KEY",
+	},
+	teleports = {
+		icon = "teleport03",
+		highlight = {
+			current = { enable = true, color = "FF0294FF" },
+			keystone = { enable = false, color = "FFFFA10D" },
+		},
+		favorites = {
+			enable = false,
+			a = { id = "none", kind = "none" },
+			b = { id = "none", kind = "none" },
+			c = { id = "none", kind = "none" },
+			d = { id = "none", kind = "none" },
+		},
+	},
+	individual_professions = {
+		icon = "default",
+	},
+	professions = {
+		icon = "prof_e",
+		menu_icons = "default",
+		tooltip_icons = true,
+		menu_icon_style = "default",
+	},
+	menu = {
+		icon = "mmt",
+		menu_icons = true,
+		show_systeminfo = true,
+		text_color = "FFFFFFFF",
+	},
+	tracker = {
+		custom = {},
+		hide_if_zero = false,
+		icon = true,
+		crop_icon = false,
+		name = false,
+		short_number = true,
+		show_max = false,
+		colored = true,
+	},
+	combat_time = {
+		in_combat = "combat_02",
+		out_of_combat = "combat_13",
+		hide_delay = 5,
+	},
+	time = {
+		icon = "none",
+		in_combat = "combat_02",
+		hold_delay = 5,
+	},
+	durability_itemLevel = {
+		warning = true,
+		force_withe_text = true,
+		repair_threshold = 15,
+		color_repair = "FFFA3E3E",
+		color_warning = "FFFF7700",
+		warning_threshold = 40,
+		style = "a",
+	},
+	dungeon = {
+		icon = "lfg04",
+		dungeon_name = true,
+	},
+}
+
+P.portraits = {
+	enable = false,
+	bg = {
+		bgColorShift = 0.5,
+		style = "default",
+		classBG = false,
+	},
+	shadow = {
+		enable = true,
+		alpha = 0.6,
+	},
+	misc = {
+		embellishment = true,
+		force_reaction = false,
+		force_default = false,
+		scale = 0.6,
+		class_icon = "none",
+		spec_icon = "none",
+		desaturate = false,
+		extratop = true,
+		filter = "LINEAR",
+		rare = "blizz_rare_neutral",
+		elite = "blizz_rare_neutral",
+		rareelite = "blizz_rare_neutral",
+		boss = "blizz_boss_neutral",
+		player = "blizz_boss_neutral",
+	},
+	custom = {
+		enable = false,
+		extra = false,
+		boss = "",
+		elite = "",
+		extra_mask = "",
+		mask = "",
+		player = "",
+		rare = "",
+		rareelite = "",
+		shadow = "",
+		extra_shadow = "",
+		texture = "",
+	},
+	player = {
+		cast = false,
+		ring = {
+			mode = "none",
+			reverse = true,
+			invert = false,
+			start = 0,
+			alpha = 1,
+			baseAlpha = 0.35,
+			feather = 0.004,
+		},
+		enable = true,
+		extra = false,
+		level = 20,
+		mirror = false,
+		point = { point = "RIGHT", relativePoint = "LEFT", x = 0, y = 0 },
+		size = 90,
+		strata = "AUTO",
+		texture = "blizz_round",
+		unitcolor = false,
+		extra_settings = {
+			enable = false,
+			size = 90,
+			offset = { x = 0, y = 0 },
+		},
+	},
+	target = {
+		cast = false,
+		ring = {
+			mode = "none",
+			reverse = true,
+			invert = false,
+			start = 0,
+			alpha = 1,
+			baseAlpha = 0.35,
+			feather = 0.004,
+		},
+		enable = true,
+		extra = true,
+		forceExtra = "none",
+		level = 20,
+		mirror = true,
+		point = { point = "LEFT", relativePoint = "RIGHT", x = 0, y = 0 },
+		size = 90,
+		strata = "AUTO",
+		texture = "blizz_round",
+		unitcolor = false,
+		extra_settings = {
+			enable = false,
+			size = 90,
+			offset = { x = 0, y = 0 },
+		},
+	},
+	focus = {
+		cast = false,
+		ring = {
+			mode = "none",
+			reverse = true,
+			invert = false,
+			start = 0,
+			alpha = 1,
+			baseAlpha = 0.35,
+			feather = 0.004,
+		},
+		enable = true,
+		extra = false,
+		forceExtra = "none",
+		level = 20,
+		mirror = true,
+		point = { point = "LEFT", relativePoint = "RIGHT", x = 0, y = 0 },
+		size = 90,
+		strata = "AUTO",
+		texture = "blizz_round",
+		unitcolor = false,
+		extra_settings = {
+			enable = false,
+			size = 90,
+			offset = { x = 0, y = 0 },
+		},
+	},
+	targettarget = {
+		cast = false,
+		ring = {
+			mode = "none",
+			reverse = true,
+			invert = false,
+			start = 0,
+			alpha = 1,
+			baseAlpha = 0.35,
+			feather = 0.004,
+		},
+		enable = true,
+		extra = false,
+		forceExtra = "none",
+		level = 20,
+		mirror = true,
+		point = { point = "LEFT", relativePoint = "RIGHT", x = 0, y = 0 },
+		size = 90,
+		strata = "AUTO",
+		texture = "blizz_round",
+		unitcolor = false,
+		extra_settings = {
+			enable = false,
+			size = 90,
+			offset = { x = 0, y = 0 },
+		},
+	},
+	pet = {
+		cast = false,
+		ring = {
+			mode = "none",
+			reverse = true,
+			invert = false,
+			start = 0,
+			alpha = 1,
+			baseAlpha = 0.35,
+			feather = 0.004,
+		},
+		enable = true,
+		extra = false,
+		forceExtra = "none",
+		level = 20,
+		mirror = false,
+		point = { point = "RIGHT", relativePoint = "LEFT", x = 0, y = 0 },
+		size = 90,
+		strata = "AUTO",
+		texture = "blizz_round",
+		unitcolor = false,
+		extra_settings = {
+			enable = false,
+			size = 90,
+			offset = { x = 0, y = 0 },
+		},
+	},
+	party = {
+		cast = false,
+		ring = {
+			mode = "none",
+			reverse = true,
+			invert = false,
+			start = 0,
+			alpha = 1,
+			baseAlpha = 0.35,
+			feather = 0.004,
+		},
+		enable = true,
+		extra = false,
+		forceExtra = "none",
+		level = 20,
+		mirror = false,
+		point = { point = "RIGHT", relativePoint = "LEFT", x = 0, y = 0 },
+		size = 90,
+		strata = "AUTO",
+		texture = "blizz_round",
+		unitcolor = false,
+		extra_settings = {
+			enable = false,
+			size = 90,
+			offset = { x = 0, y = 0 },
+		},
+	},
+	boss = {
+		cast = false,
+		ring = {
+			mode = "none",
+			reverse = true,
+			invert = false,
+			start = 0,
+			alpha = 1,
+			baseAlpha = 0.35,
+			feather = 0.004,
+		},
+		enable = true,
+		extra = true,
+		level = 20,
+		mirror = true,
+		point = { point = "LEFT", relativePoint = "RIGHT", x = 0, y = 0 },
+		size = 90,
+		strata = "AUTO",
+		texture = "blizz_round",
+		forceExtra = "none",
+		unitcolor = false,
+		extra_settings = {
+			enable = false,
+			size = 90,
+			offset = { x = 0, y = 0 },
+		},
+	},
+	arena = {
+		cast = false,
+		ring = {
+			mode = "none",
+			reverse = true,
+			invert = false,
+			start = 0,
+			alpha = 1,
+			baseAlpha = 0.35,
+			feather = 0.004,
+		},
+		enable = true,
+		extra = false,
+		forceExtra = "none",
+		level = 20,
+		mirror = true,
+		point = { point = "LEFT", relativePoint = "RIGHT", x = 0, y = 0 },
+		size = 90,
+		strata = "AUTO",
+		texture = "blizz_round",
+		unitcolor = false,
+		extra_settings = {
+			enable = false,
+			size = 90,
+			offset = { x = 0, y = 0 },
+		},
+	},
+}
+
+P.interrupt_on_cd = {
+	enable = false,
+	set_bg_color = true,
+	bg_multiplier = 0.25,
+}
+
+P.tooltip = {
+	enable = false,
+	size = 32,
+	zoom = true,
+}
+
+P.minimap_skin = {
+	enable = false,
+	style = "zigzag",
+	cardinal = "none",
+	color = "class",
+	color_cardinal = "class",
+}
+
+P.dock = {
+	auto_grow = true,
+	grow_size = 32,
+	tooltip = true,
+
+	class = {
+		normal = false,
+		hover = true,
+		clicked = false,
+		notification = false,
+	},
+
+	notification = {
+		enable = false,
+		class = false,
+		auto = true,
+		size = 16,
+		style = "former",
+		icon = "forma_04",
+	},
+
+	text = {
+		font = "PT Sans Narrow",
+		custom_font_size = false,
+		fontSize = 12,
+		fontFlag = "OUTLINE",
+		custom_font_color = true,
+	},
+
+	store = {
+		style = "former",
+		icon = "forma_28",
+		custom_color = false,
+	},
+
+	housing = {
+		style = "former",
+		icon = "forma_62",
+		custom_color = false,
+	},
+
+	achievement = {
+		style = "former",
+		icon = "forma_69",
+		custom_color = false,
+	},
+
+	bags = {
+		style = "former",
+		icon = "forma_05",
+		custom_color = false,
+		text = "none",
+		gold = false,
+	},
+
+	character = {
+		style = "former",
+		icon = "forma_51",
+		custom_color = false,
+		percThreshold = 30,
+		text = false,
+	},
+
+	collection = {
+		style = "former",
+		icon = "forma_18",
+		custom_color = false,
+	},
+
+	durability = {
+		style = "former",
+		icon = "forma_08",
+		custom_color = false,
+		percThreshold = 30,
+		text = "none",
+	},
+
+	encounter = {
+		style = "former",
+		icon = "forma_14",
+		custom_color = false,
+	},
+
+	friends = {
+		style = "former",
+		icon = "forma_53",
+		custom_color = false,
+		text = true,
+	},
+
+	guild = {
+		style = "former",
+		icon = "forma_29",
+		custom_color = false,
+		text = true,
+	},
+
+	lfd = {
+		style = "former",
+		icon = "forma_02",
+		custom_color = false,
+		text = true,
+		call_to_the_Arms = true,
+	},
+
+	mail = {
+		style = "former",
+		icon = "forma_04",
+		custom_color = false,
+	},
+
+	menu = {
+		style = "former",
+		icon = "forma_44",
+		custom_color = false,
+	},
+
+	professions = {
+		style = "former",
+		icon = "forma_68",
+		custom_color = false,
+	},
+
+	quests = {
+		style = "former",
+		icon = "forma_57",
+		custom_color = false,
+	},
+
+	spellbook = {
+		style = "former",
+		icon = "forma_13",
+		custom_color = false,
+	},
+
+	spec = {
+		style = "former",
+		icon = "forma_41",
+		custom_color = false,
+	},
+
+	volume = {
+		style = "former",
+		icon = "forma_72",
+		custom_color = false,
+		text = true,
+		colored = true,
+	},
+
+	calendar = {
+		icon = "filled",
+		custom_color = false,
+	},
+}
+
+P.tags = {
+	classification = {
+		rare = "star",
+		rareelite = "star",
+		elite = "star",
+		worldboss = "year_of_goat",
+	},
+	status = {
+		afk = "clock",
+		dnd = "unavailable",
+		dc = "network_cable",
+		dead = "skull2",
+		ghost = "ghost",
+	},
+	misc = {
+		tank = "shield9",
+		healer = "heal13",
+		dps = "bigsword2",
+		pvp = "pvp",
+		quest = "quest2",
+	},
+}
+
+P.nameplates = {
+	target_glow_color = false,
+	combat_fade = {
+		enable = false,
+		alpha = 0.3,
+		scale = 1,
+		instanceOnly = false,
+	},
+	raid_marker_color = {
+		enable = false,
+		alpha = 1,
+		markers = {
+			star = false,
+			circle = false,
+			diamond = false,
+			triangle = false,
+			moon = false,
+			square = false,
+			cross = true,
+			skull = true,
+		},
+		above_important_casts = {
+			star = false,
+			circle = false,
+			diamond = false,
+			triangle = false,
+			moon = false,
+			square = false,
+			cross = false,
+			skull = false,
+		},
+	},
+	classification = {
+		enable = false,
+		instanceOnly = false,
+		units = {
+			worldboss = { enable = false, texture = "mMediaTag A4" },
+			eliteBoss = { enable = false, texture = "mMediaTag A4" },
+			eliteMini = { enable = false, texture = "mMediaTag A4" },
+			rareelite = { enable = false, texture = "mMediaTag A4" },
+			rare = { enable = false, texture = "mMediaTag A4" },
+			caster = { enable = false, texture = "mMediaTag A4" },
+		},
+	},
+	focus = {
+		enable = false,
+		changeColor = false,
+		changeBorder = false,
+		changeTexture = false,
+		ignoreThreat = false,
+		texture = "mMediaTag A9",
+	},
+	target = {
+		enable = false,
+		changeColor = false,
+		changeBorder = false,
+		changeTexture = false,
+		ignoreThreat = false,
+		texture = "mMediaTag A4",
+	},
+	quest = {
+		enable = false,
+		changeColor = false,
+		changeBorder = false,
+		changeTexture = false,
+		ignoreThreat = false,
+		texture = "mMediaTag A1",
+	},
+	execute = {
+		enable = false,
+		auto = true,
+		range = 20,
+		onlyCombat = true,
+	},
+}
+
+P.role_icons = {
+	enable = false,
+	tank = "shield9",
+	heal = "heal13",
+	dd = "bigsword2",
+}
+
+P.phase_icon = {
+	enable = false,
+	icon = "phase10",
+}
+
+P.resurrection_icon = {
+	enable = false,
+	icon = "resurrection_15",
+}
+
+P.ready_check_icon = {
+	enable = false,
+	ready = "readycheck_10",
+	notready = "readycheck_13",
+	waiting = "readycheck_35",
+}
+
+P.unitframe_textures = {
+	player = { enable = false, texture = "ElvUI Norm", power_enable = true, background_enable = false, background = "ElvUI Norm" },
+	target = { enable = false, texture = "ElvUI Norm", power_enable = true, background_enable = false, background = "ElvUI Norm" },
+	targettarget = { enable = false, texture = "ElvUI Norm", power_enable = true, background_enable = false, background = "ElvUI Norm" },
+	targettargettarget = { enable = false, texture = "ElvUI Norm", power_enable = true, background_enable = false, background = "ElvUI Norm" },
+	focus = { enable = false, texture = "ElvUI Norm", power_enable = true, background_enable = false, background = "ElvUI Norm" },
+	pet = { enable = false, texture = "ElvUI Norm", power_enable = true, background_enable = false, background = "ElvUI Norm" },
+	party = { enable = false, texture = "ElvUI Norm", power_enable = true, background_enable = false, background = "ElvUI Norm" },
+	arena = { enable = false, texture = "ElvUI Norm", power_enable = true, background_enable = false, background = "ElvUI Norm" },
+	boss = { enable = false, texture = "ElvUI Norm", power_enable = true, background_enable = false, background = "ElvUI Norm" },
+	castbar = { enable = false, texture = "ElvUI Norm", background_enable = false, background = "ElvUI Norm" },
+	healprediction = { enable = false, texture = "ElvUI Norm", nameplates = false },
+	damageabsorb = { enable = false, texture = "ElvUI Norm", nameplates = false },
+	healabsorb = { enable = false, texture = "ElvUI Norm", nameplates = false },
+	powerprediction = { enable = false, texture = "ElvUI Norm" },
+}
+
+P.summon_icon = {
+	enable = false,
+	available = "summon_01",
+	accepted = "summon_01",
+	rejected = "summon_01",
+}
+
+P.dispel_icon = {
+	enable = false,
+	units = {},
+}
+
+-- raid sized frames get the small icon size of Blizzards raid frames, only the healer relevant frames start enabled
+for unit, size in pairs({ player = 20, target = 20, focus = 20, targettarget = 20, pet = 20, party = 20, raid1 = 14, raid2 = 14, raid3 = 14, raidpet = 14, tank = 14, assist = 14 }) do
+	local enable = unit == "player" or unit == "party" or unit == "raid1" or unit == "raid2" or unit == "raid3"
+	P.dispel_icon.units[unit] = {
+		enable = enable,
+		source = "DISPELLABLE",
+		showIcons = true,
+		count = 3,
+		size = size,
+		spacing = 2,
+		growth = "RIGHT",
+		point = "CENTER",
+		x = 0,
+		y = 0,
+		highlight = {
+			enable = false,
+			target = "HEALTH",
+			border = true,
+			glow = "NONE",
+			glowDebuffColor = false,
+			glowColor = { r = 0.95, g = 0.95, b = 0.32 },
+			pixelSize = 2,
+			pixelLines = 6,
+			pixelSpeed = 4,
+		},
+	}
+end
+
+P.enrage_icon = {
+	enable = false,
+	units = {},
+}
+
+for unit, size in pairs({ target = 20, focus = 20, boss = 18, arena = 18, nameplate = 16 }) do
+	local nameplate = unit == "nameplate"
+	P.enrage_icon.units[unit] = {
+		enable = true,
+		source = "ALL",
+		showIcons = true,
+		count = 2,
+		size = size,
+		spacing = 2,
+		growth = "RIGHT",
+		point = nameplate and "LEFT" or "CENTER",
+		x = nameplate and -(size + 2) or 0,
+		y = 0,
+		highlight = {
+			enable = false,
+			target = "HEALTH",
+			border = true,
+			glow = "NONE",
+			glowDebuffColor = true,
+			glowColor = { r = 0.95, g = 0.95, b = 0.32 },
+			pixelSize = 2,
+			pixelLines = 6,
+			pixelSpeed = 4,
+		},
+	}
+end
+
+P.details = {
+	mode = "DISABLE",
+	windows = 2,
+	toggle = true,
+}
+
+P.auto_quest = {
+	enable = false,
+	auto_accept = true,
+	auto_turnin = true,
+	auto_gossip = true,
+	gossip_quest = true,
+	gossip_movie = false,
+	gossip_single = false,
+	skip_in_combat = true,
+	chat_message = false,
+}
+
+P.auto_role_check = {
+	enable = false,
+	accept_lfd = true,
+	accept_premade = true,
+}
+
+P.auto_delete = {
+	enable = false,
+}
+
+P.merchant_grid = {
+	enable = false,
+}
+
+P.merchant_buy_max = {
+	enable = false,
+}
+
+P.merchant_known = {
+	enable = false,
+	known = true,
+	color = "FFFF2020",
+	appearance = true,
+	appearanceColor = "FF33D1FF",
+	icon = false,
+	border = true,
+	tint = true,
+}
+
+P.mail_helper = {
+	enable = false,
+	gold_button = true,
+	overview = true,
+	summary = true,
+	continue = true,
+	recipient_list = true,
+}
+
+P.auto_friendly_nameplates = {
+	enable = false,
+	dungeon = true,
+	raid = true,
+}
+
+P.important_casts = {
+	enable = false,
+	thickness = 2,
+	classColor = false,
+	overrideHealthBarColor = false,
+	showIcon = true,
+	icon = "important_cast_17",
+	iconSize = 16,
+	anchor = "TOP",
+	posX = 0,
+	posY = 0,
+	glow_castbar = false,
+	glow_health = false,
+	glow_interruptible_only = true,
+	glow_ready_only = false,
+	glow_thickness = 2,
+}
+
+P.color = {
+	-- tip/ menu
+	title = "FFFFBE19",
+	text = "FFFFFFFF",
+	tip = "FFB2B2B2",
+	mark = "FF38FF92",
+
+	-- difficulty
+	N = "FF1EFF00",
+	H = "FF0070DD",
+	M = "FFA335EE",
+	PVP = "FFE6CC80",
+	MP = "FFFF8000",
+	LFR = "FFBE7FE8",
+	TW = "FF00CCFF",
+	QUEST = "FFFFBB00",
+	SC = "FF00FF8C",
+	STORY = "FFE6CC80",
+	DELVE = "FF91D900",
+	FOLLOWER = "FF00FF8C",
+	OTHER = "FF00FFEE",
+	GUILD = "FF91D900",
+
+	portraits = {
+		misc = {
+			death = { c = "FFF86767" },
+			default = { c = "FFE6CC80" },
+			bg = "FF000000",
+			ring_health = { c = "FF00FE48" },
+			ring_cast = { c = "FFFFD52E" },
+		},
+		class = {
+			DEATHKNIGHT = { c = "FFC41E3A" },
+			DEMONHUNTER = { c = "FFA330C9" },
+			DRUID = { c = "FFFF7C0A" },
+			EVOKER = { c = "FF33937F" },
+			HUNTER = { c = "FFAAD372" },
+			MAGE = { c = "FF3FC7EB" },
+			MONK = { c = "FF00FF98" },
+			PALADIN = { c = "FFF48CBA" },
+			PRIEST = { c = "FFFFFFFF" },
+			ROGUE = { c = "FFFFF468" },
+			SHAMAN = { c = "FF0070DD" },
+			WARLOCK = { c = "FF8788EE" },
+			WARRIOR = { c = "FFC69B6D" },
+		},
+		classification = {
+			boss = { c = "FFFF2E2E" },
+			elite = { c = "FFFF00E6" },
+			player = { c = "FF00FFEE" },
+			rare = { c = "FFB300FF" },
+			rareelite = { c = "FFA100FF" },
+		},
+		reaction = {
+			enemy = { c = "FFFF4848" },
+			friendly = { c = "FF00FE48" },
+			neutral = { c = "FFFFD52E" },
+		},
+	},
+
+	interrupt_on_cd = {
+		onCD = "FFA200FF",
+		normal = "FF15FF47",
+		marker = "FFFFFFFF",
+	},
+
+	minimap_skin = { color = "FFFFFFFF", cardinal = "FFFFFFFF" },
+
+	dock = {
+		normal = "FFFFFFFF",
+		hover = "FFB9B9B9",
+		clicked = "FF838383",
+		notification = "FF00FF88",
+		font = "FFFFFFFF",
+		store = "FFFFFFFF",
+		housing = "FFFFFFFF",
+		achievement = "FFFFFFFF",
+		bags = "FFFFFFFF",
+		character = "FFFFFFFF",
+		collection = "FFFFFFFF",
+		durability = "FFFFFFFF",
+		encounter = "FFFFFFFF",
+		friends = "FFFFFFFF",
+		guild = "FFFFFFFF",
+		lfd = "FFFFFFFF",
+		mail = "FFFFFFFF",
+		menu = "FFFFFFFF",
+		professions = "FFFFFFFF",
+		quests = "FFFFFFFF",
+		spellbook = "FFFFFFFF",
+		spec = "FFFFFFFF",
+		volume = "FFFFFFFF",
+		calendar = "FFFFFFFF",
+	},
+
+	tags = {
+		classification = {
+			rare = "FFB300FF",
+			rareelite = "FFA100FF",
+			elite = "FFFF00E6",
+			worldboss = "FFFF2E2E",
+		},
+		status = {
+			afk = "ffffba00",
+			dnd = "ffff0050",
+			dc = "FF808080",
+			dead = "ffff5561",
+			ghost = "ff80bfff",
+		},
+		misc = {
+			tank = "FF6CF5FF",
+			healer = "FFB5FF54",
+			dps = "FFFDBB6E",
+			pvp = "FFFD786E",
+			quest = "FFFFEE00",
+			resting = "FF38FF92",
+		},
+	},
+
+	important_casts = {
+		border = "FFFF00E6",
+		health = "FFFF00E6",
+		glow = "FFFFD100",
+	},
+
+	nameplates = {
+		focus_color = "FF00FFB3",
+		focus_border_color = "FF00FFB3",
+		target_color = "FFA200FF",
+		target_border_color = "FFA200FF",
+		quest_color = "FFFFA500",
+		quest_border_color = "FFFFA500",
+		execute_color = "FFFF3333",
+	},
+
+	raid_markers = {
+		star = "FFFFD21E",
+		circle = "FFFF8A1E",
+		diamond = "FFC85AFF",
+		triangle = "FF3CDC46",
+		moon = "FFB4C8DC",
+		square = "FF2896FF",
+		cross = "FFFF3C3C",
+		skull = "FFF0F0F0",
+	},
+
+	phase_icon = {
+		Phasing = "FF265FFD",
+		Sharding = "FF74FA4C",
+		WarMode = "FFF73E3E",
+		ChromieTime = "FFFFC21A",
+		TimerunningHwt = "FFF566D6",
+	},
+
+	summon_icon = {
+		available = "FFFFFFFF",
+		accepted = "FF74FA4C",
+		rejected = "FFF73E3E",
+	},
+}
+
+P.cooldown_manager = {
+	enable = false,
+	hide_swipe = false,
+	viewers = {
+		essential = {
+			manage = true,
+			alpha = 1,
+			visibility = "ALWAYS",
+			hide_delay = 3,
+			fade_time = 0.5,
+			keybind = false,
+			keep_ratio = true,
+			width = 30,
+			height = 30,
+			spacing = 2,
+			per_row = 12,
+			max_width = 0,
+			max_height = 0,
+			max_icon_size = 0,
+			growth = "DOWN",
+			anchor = { frame = "", point = "TOP", relative = "BOTTOM", x = 0, y = 0, match = false, match_offset = 0 },
+			cooldown_text = { font = "PT Sans Narrow", font_flag = "OUTLINE", size = 16, class_color = false, color = { r = 1, g = 1, b = 1 }, position = "CENTER", x = 0, y = 0 },
+			count_text = { font = "PT Sans Narrow", font_flag = "OUTLINE", size = 11, class_color = false, color = { r = 1, g = 1, b = 1 }, position = "BOTTOMRIGHT", x = 0, y = 0 },
+			keybind_text = { font = "PT Sans Narrow", font_flag = "OUTLINE", size = 11, class_color = false, color = { r = 1, g = 1, b = 1 }, position = "TOPRIGHT", x = 0, y = 0 },
+			glow = { enable = false, type = "pixel", color = { r = 0.95, g = 0.95, b = 0.32, a = 1 }, lines = 8, speed = 0.25, thickness = 2, particles = 4, scale = 1, start_anim = true },
+		},
+		utility = {
+			manage = true,
+			alpha = 1,
+			visibility = "ALWAYS",
+			hide_delay = 3,
+			fade_time = 0.5,
+			keybind = false,
+			keep_ratio = true,
+			width = 30,
+			height = 30,
+			spacing = 2,
+			per_row = 12,
+			max_width = 0,
+			max_height = 0,
+			max_icon_size = 0,
+			growth = "DOWN",
+			anchor = { frame = "", point = "TOP", relative = "BOTTOM", x = 0, y = 0, match = false, match_offset = 0 },
+			cooldown_text = { font = "PT Sans Narrow", font_flag = "OUTLINE", size = 16, class_color = false, color = { r = 1, g = 1, b = 1 }, position = "CENTER", x = 0, y = 0 },
+			count_text = { font = "PT Sans Narrow", font_flag = "OUTLINE", size = 11, class_color = false, color = { r = 1, g = 1, b = 1 }, position = "BOTTOMRIGHT", x = 0, y = 0 },
+			keybind_text = { font = "PT Sans Narrow", font_flag = "OUTLINE", size = 11, class_color = false, color = { r = 1, g = 1, b = 1 }, position = "TOPRIGHT", x = 0, y = 0 },
+			glow = { enable = false, type = "pixel", color = { r = 0.95, g = 0.95, b = 0.32, a = 1 }, lines = 8, speed = 0.25, thickness = 2, particles = 4, scale = 1, start_anim = true },
+		},
+		buff_icon = {
+			manage = true,
+			alpha = 1,
+			debuff_border = false,
+			pandemic = "blizzard",
+			pandemic_color = { r = 1, g = 1, b = 1 },
+			pandemic_glow = { type = "pixel", color = { r = 1, g = 0.35, b = 0.1, a = 1 }, lines = 8, speed = 0.25, thickness = 2, particles = 4, scale = 1, start_anim = true },
+			visibility = "ALWAYS",
+			hide_delay = 3,
+			fade_time = 0.5,
+			keep_ratio = true,
+			width = 30,
+			height = 30,
+			spacing = 2,
+			per_row = 12,
+			max_width = 0,
+			max_height = 0,
+			max_icon_size = 0,
+			growth = "DOWN",
+			anchor = { frame = "", point = "TOP", relative = "BOTTOM", x = 0, y = 0, match = false, match_offset = 0 },
+			cooldown_text = { font = "PT Sans Narrow", font_flag = "OUTLINE", size = 16, class_color = false, color = { r = 1, g = 1, b = 1 }, position = "CENTER", x = 0, y = 0 },
+			count_text = { font = "PT Sans Narrow", font_flag = "OUTLINE", size = 11, class_color = false, color = { r = 1, g = 1, b = 1 }, position = "BOTTOMRIGHT", x = 0, y = 0 },
+		},
+		buff_bar = {
+			manage = true,
+			alpha = 1,
+			debuff_border = false,
+			pandemic = "blizzard",
+			pandemic_color = { r = 1, g = 1, b = 1 },
+			pandemic_glow = { type = "pixel", color = { r = 1, g = 0.35, b = 0.1, a = 1 }, lines = 8, speed = 0.25, thickness = 2, particles = 4, scale = 1, start_anim = true },
+			visibility = "ALWAYS",
+			hide_delay = 3,
+			fade_time = 0.5,
+			width = 200,
+			height = 20,
+			spacing = 2,
+			growth = "DOWN",
+			anchor = { frame = "", point = "TOP", relative = "BOTTOM", x = 0, y = 0, match = false, match_offset = 0 },
+			icon = true,
+			icon_gap = 2,
+			name = true,
+			timer = true,
+			stacks = true,
+			mirrored = false,
+			column_gap = 4,
+			texture = "ElvUI Norm",
+			class_color = true,
+			color = { r = 0.2, g = 0.6, b = 1 },
+			background_color = { r = 0.1, g = 0.1, b = 0.1, a = 0.5 },
+			name_text = { font = "PT Sans Narrow", font_flag = "OUTLINE", size = 12, class_color = false, color = { r = 1, g = 1, b = 1 }, position = "LEFT", x = 2, y = 0 },
+			duration_text = { font = "PT Sans Narrow", font_flag = "OUTLINE", size = 12, class_color = false, color = { r = 1, g = 1, b = 1 }, position = "RIGHT", x = -2, y = 0 },
+			stacks_text = { font = "PT Sans Narrow", font_flag = "OUTLINE", size = 11, class_color = false, color = { r = 1, g = 1, b = 1 }, position = "BOTTOMRIGHT", x = 0, y = 0 },
+		},
+		custom = {
+			enable = false,
+			alpha = 1,
+			visibility = "ALWAYS",
+			hide_delay = 3,
+			fade_time = 0.5,
+			tooltips = true,
+			clickable = true,
+			racials = true,
+			healthstone = true,
+			potions = true,
+			combat_potions = true,
+			weyrnstone = true,
+			belt_tinker = false,
+			trinkets = "both",
+			on_use_only = true,
+			known_only = true,
+			entries = {},
+			keep_ratio = true,
+			width = 36,
+			height = 36,
+			spacing = 4,
+			per_row = 6,
+			max_width = 0,
+			max_height = 0,
+			max_icon_size = 0,
+			growth = "CENTER",
+			anchor = { frame = "", point = "TOP", relative = "BOTTOM", x = 0, y = 0, match = false, match_offset = 0 },
+			cooldown_text = { font = "PT Sans Narrow", font_flag = "OUTLINE", size = 14, class_color = false, color = { r = 1, g = 1, b = 1 }, position = "CENTER", x = 0, y = 0 },
+			count_text = { font = "PT Sans Narrow", font_flag = "OUTLINE", size = 11, class_color = false, color = { r = 1, g = 1, b = 1 }, position = "BOTTOMRIGHT", x = 0, y = 0 },
+		},
+	},
+	spell_glow = {},
+	spell_bar_color = {},
+	spell_active_state = {},
+}

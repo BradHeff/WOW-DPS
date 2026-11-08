@@ -1,0 +1,106 @@
+## Interface: 16001
+## Version: v0.6.1
+## Title: Hekili Forever
+## Author: defzach
+## IconTexture: Interface\AddOns\Hekili\Textures\HekiliForever
+## Category: Combat
+## Notes: Hekili Forever: a priority helper for WoW Forever, based on the original work by Hekili. A fork made with the original author's permission; not the original project.
+## X-Website: https://github.com/zmsl/hekili
+## X-Curse-Project-ID: 1753387
+## SavedVariables: HekiliDB
+## OptionalDeps: ConsolePort, ElvUI, LibDualSpec-1.0, Masque, WeakAuras
+
+embeds.xml
+
+Game\State\VirtualState.lua
+Game\State\ObsLog.lua
+Game\State\Belief.lua
+Game\State\Stats.lua
+Game\State\Families\Player.lua
+Game\State\Families\Casts.lua
+Game\State\Families\Resources.lua
+Game\State\Families\Swing.lua
+Game\State\Families\Auras.lua
+Game\State\Families\TargetCast.lua
+Game\State\Families\TargetHealth.lua
+Game\State\Families\Talents.lua
+Game\State\Families\Gear.lua
+Game\State\Families\Totems.lua
+Game\State\Families\Pets.lua
+Game\State\Families\Enemies.lua
+Game\State\Families\Now.lua
+Game\State\Families\Windows.lua
+Game\State\Families\Expect.lua
+Game\State\Families\Modifiers.lua
+Game\State\Sources\Sources.lua
+Game\State\Sources\Units.lua
+Game\State\Sources\Outcomes\Default.lua
+Game\State\Sources\Presence\Default.lua
+Game\State\Sources\Player.lua
+Game\State\Sources\Spellbook.lua
+Game\State\Sources\Casts.lua
+Game\State\Sources\Power.lua
+Game\State\Sources\Swing.lua
+Game\State\Sources\Auras.lua
+Game\State\Sources\Forms.lua
+Game\State\Sources\Target.lua
+Game\State\Sources\Talents.lua
+Game\State\Sources\Gear.lua
+Game\State\Sources\Nameplates.lua
+Game\State\Sources\Totems.lua
+Game\State\Sources\Pets.lua
+Game\State\Sources\Enchants.lua
+Game\State\Sources\Outcomes\Meter.lua
+Game\State\Sources\Presence\CooldownViewer.lua
+Game\State\Sources\Presence\Router.lua
+Game\State\Snapshot.lua
+Game\Events\EventFacade.lua
+Game\Events\CombatLog.lua
+Game\Events\Bands.lua
+Game\Events\Tickets.lua
+Game\Events\Melee.lua
+Game\Events\Kinds.lua
+Game\Events\Rows.lua
+Game\Events\Attackers.lua
+Game\API\Facade.lua
+Locales\enUS.lua
+Locales\zhCN.lua
+Locales\Locales.lua
+
+Hekili.lua
+Engine\Settings.lua
+Engine\Sim\Utils.lua
+UI\Formatting.lua
+UI\MultilineEditor.lua
+Engine\Sim\Constants.lua
+Engine\Sim\State.lua
+Engine\Schema\Races.lua
+Engine\Sim\Events.lua
+
+Engine\Schema\Trees.lua
+Engine\Schema\Tracked.lua
+Engine\Schema\Spec.lua
+Engine\Schema\Shared.lua
+Engine\Schema\Threat.lua
+Engine\Output.lua
+Engine\Registry.lua
+Engine\Snapshot.lua
+
+Engine\Sim\Targets.lua
+Options\DevTools.lua
+Options\ChatCommands.lua
+Options\StyleOptions.lua
+Options\Options.lua
+Options\Profile.lua
+Engine\Driver.lua
+Engine\Content.lua
+UI\UI.lua
+UI\Resolve.lua
+UI\Styles.lua
+UI\Styles\Classic.lua
+UI\Styles\Timeline.lua
+UI\Truth.lua
+Integrations\WeakAuras.lua
+Engine\Sim\AplWarnings.lua
+Engine\Sim\Scripts.lua
+Engine\Sim\Core.lua

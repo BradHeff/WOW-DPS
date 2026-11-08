@@ -1,0 +1,151 @@
+local E, L, V, P, G = unpack(ElvUI)
+local UF = E:GetModule('UnitFrames')
+local ElvUF = E.oUF
+
+local next = next
+local tonumber = tonumber
+
+local UnitInPhase = UnitInPhase
+local UnitInRange = UnitInRange
+local UnitIsPlayer = UnitIsPlayer
+local UnitCanAttack = UnitCanAttack
+local UnitIsConnected = UnitIsConnected
+local UnitIsDeadOrGhost = UnitIsDeadOrGhost
+local CheckInteractDistance = CheckInteractDistance
+local InCombatLockdown = InCombatLockdown
+local UnitPhaseReason = UnitPhaseReason
+local IsInInstance = IsInInstance
+local UnitInParty = UnitInParty
+local UnitInRaid = UnitInRaid
+
+local IsSpellInSpellBook = C_SpellBook.IsSpellInSpellBook
+local IsSpellInRange = C_Spell.IsSpellInRange
+local PhaseReason = Enum.PhaseReason
+
+local list = {}
+UF.RangeSpells = list
+
+function UF:UpdateRangeList(db)
+	local spells = {}
+	for spell, value in next, db do
+		if value then
+			local id = tonumber(spell)
+			if not id then -- support spells by name
+				local _, _, _, _, _, _, spellID = E:GetSpellInfo(spell)
+				if spellID then
+					id = spellID
+				end
+			end
+
+			if id and IsSpellInSpellBook(id, nil, true) then
+				spells[id] = true
+			end
+		end
+	end
+
+	return spells
+end
+
+function UF:UpdateRangeSpells(event, arg1)
+	if event == 'CHARACTER_POINTS_CHANGED' and (not arg1 or arg1 > 0) then
+		return -- Not interested in gained points from leveling
+	end
+
+	local db = E.global.unitframe.rangeCheck
+	if db then
+		list[1] = UF:UpdateRangeList(db.ENEMY[E.myclass])
+		list[2] = UF:UpdateRangeList(db.FRIENDLY[E.myclass])
+		list[3] = UF:UpdateRangeList(db.RESURRECT[E.myclass])
+		list[4] = UF:UpdateRangeList(db.PET[E.myclass])
+	end
+end
+
+function UF:UnitSpellRange(unit, spells)
+	local failed
+	for spell in next, spells do
+		local range = IsSpellInRange(spell, unit)
+		if range then
+			return true
+		elseif range ~= nil then
+			failed = true -- oh no
+		end
+	end
+
+	if failed then
+		return false
+	end
+end
+
+function UF:UnitInSpellsRange(unit, which)
+	local spells = list[which]
+	local range = (not next(spells) and 1) or UF:UnitSpellRange(unit, spells)
+
+	if (not range or range == 1) and not InCombatLockdown() then
+		return CheckInteractDistance(unit, 4) -- check follow interact when not in combat
+	else
+		return (range == nil and 1) or range -- nil: various reason it cant be checked; ie: cant be cast on the unit
+	end
+end
+
+function UF:FriendlyInRange(unit)
+	if UnitIsPlayer(unit) then
+		if E.Modern then
+			local phaseReason = UnitPhaseReason(unit)
+			if not E:IsSecretValue(phaseReason) then
+				if phaseReason == PhaseReason.TimerunningHwt then
+					if not IsInInstance() then -- phased in open world (hero / nonhero) but not phased in dungeons
+						return false
+					end
+				elseif phaseReason then
+					return false
+				end
+			end
+		elseif not UnitInPhase(unit) then
+			return false
+		end
+	end
+
+	local unitInRange, wasChecked = UnitInRange(unit)
+	if E:IsSecretValue(wasChecked) then
+		local unitRaid, unitParty = UnitInRaid(unit), UnitInParty(unit)
+		local unitSecret = E:IsSecretValue(unitRaid) or E:IsSecretValue(unitParty)
+		if not unitSecret and (unitRaid or unitParty) then -- if its eligible it will
+			return nil, unitInRange, wasChecked -- be handled by these values so no need to proceed
+		end
+	elseif wasChecked and not unitInRange then
+		return false -- blizz checked and unit is out of range
+	end
+
+	return UF:UnitInSpellsRange(unit, 2)
+end
+
+function UF:UpdateRange(unit)
+	local element = self.Fader
+	if not element then return end
+
+	-- clear these if we arent checking them (these are secret values on retail)
+	element.isInRange, element.checkedRange = nil, nil
+
+	local exists = ElvUF:UnitExists(unit)
+	if self.forceInRange or (exists and unit == 'player') then
+		element.RangeAlpha = element.MaxAlpha
+	elseif self.forceNotInRange then
+		element.RangeAlpha = element.MinAlpha
+	elseif exists then
+		if UnitIsDeadOrGhost(unit) then
+			element.RangeAlpha = UF:UnitInSpellsRange(unit, 3) == true and element.MaxAlpha or element.MinAlpha
+		elseif UnitCanAttack('player', unit) then
+			element.RangeAlpha = UF:UnitInSpellsRange(unit, 1) and element.MaxAlpha or element.MinAlpha
+		elseif E:UnitIsUnit('pet', unit) then
+			element.RangeAlpha = UF:UnitInSpellsRange(unit, 4) and element.MaxAlpha or element.MinAlpha
+		elseif UnitIsConnected(unit) then
+			local inRange, unitInRange, checkedRange = UF:FriendlyInRange(unit)
+			element.isInRange, element.checkedRange = unitInRange, checkedRange
+			element.RangeAlpha = inRange and element.MaxAlpha or element.MinAlpha
+		else
+			element.RangeAlpha = element.MinAlpha
+		end
+	else
+		element.RangeAlpha = element.MaxAlpha
+	end
+end

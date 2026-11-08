@@ -1,0 +1,195 @@
+local E, _, V, P, G = unpack(ElvUI)
+local C, L = unpack(E.Config)
+local BL = E:GetModule('Blizzard')
+local ACH = E.Libs.ACH
+
+local pairs = pairs
+local format = format
+
+local toggles = {
+	addonManager = L["AddOn Manager"],
+	auctionhouse = L["AUCTIONS"],
+	bags = L["Bags"],
+	bgmap = L["BG Map"],
+	bgscore = L["BG Score"],
+	blizzardOptions = L["INTERFACE_OPTIONS"],
+	channels = L["CHANNELS"],
+	character = L["Character Frame"],
+	communities = L["COMMUNITIES"],
+	debug = L["Debug Tools"],
+	dressingroom = L["DRESSUP_FRAME"],
+	editor = L["Editor Manager"],
+	eventLog = L["Event Log"],
+	friends = format(E.Modern and '%s' or '%s & %s', L["Friends"], L["Guild"]),
+	gossip = L["Gossip Frame"],
+	guildcontrol = L["Guild Control Frame"],
+	guildregistrar = L["Guild Registrar"],
+	help = L["Help Frame"],
+	inspect = L["Inspect"],
+	lfg = L["LFG_TITLE"],
+	loot = L["Loot Frame"],
+	macro = L["MACROS"],
+	mail = L["Mail Frame"],
+	merchant = L["Merchant Frame"],
+	mirrorTimers = L["Mirror Timers"],
+	misc = L["Misc Frames"],
+	nonraid = L["Non-Raid Frame"],
+	petition = L["Petition Frame"],
+	quest = L["Quest Frames"],
+	raid = L["Raid Frame"],
+	stable = L["Stable"],
+	tabard = L["Tabard Frame"],
+	talent = L["TALENTS"],
+	taxi = L["FLIGHT_MAP"],
+	timemanager = L["TIMEMANAGER_TITLE"],
+	tooltip = L["Tooltip"],
+	trade = L["TRADE"],
+	tradeskill = L["TRADESKILLS"],
+	trainer = L["Trainer Frame"],
+	tutorials = L["Tutorials"],
+	worldmap = L["WORLD_MAP"]
+}
+
+if E.Modern or E.Mists then
+	toggles.pvp = L["PvP Frames"]
+	toggles.guild = L["Guild"]
+	toggles.losscontrol = L["LOSS_OF_CONTROL"]
+end
+
+if E.Retail or E.Mists then
+	toggles.archaeology = L["Archaeology Frame"]
+	toggles.bmah = L["BLACK_MARKET_AUCTION_HOUSE"]
+	toggles.encounterjournal = L["ENCOUNTER_JOURNAL"]
+	toggles.itemUpgrade = L["Item Upgrade"]
+	toggles.petbattleui = L["Pet Battle"]
+end
+
+if E.Modern or E.Mists or E.TBC then
+	toggles.catalogShop = L["BLIZZARD_STORE"]
+end
+
+if E.Retail or E.Mists or E.Wrath then
+	toggles.achievement = L["ACHIEVEMENTS"]
+end
+
+if E.Modern or E.Mists or E.Wrath then
+	toggles.alertframes = L["Alert Frames"]
+	toggles.barber = L["BARBERSHOP"]
+	toggles.calendar = L["Calendar Frame"]
+	toggles.collections = L["COLLECTIONS"]
+	toggles.transmogrify = L["TRANSMOGRIFY"]
+end
+
+if not E.Classic then
+	toggles.gbank = L["Guild Bank"]
+end
+
+if E.Modern or E.TBC or E.Classic then
+	toggles.gmChat = L["GM Chat"]
+end
+
+if E.Wrath or E.TBC then
+	toggles.arena = L["Arena"]
+end
+
+if E.Wrath or E.TBC or E.Classic then
+	toggles.battlefield = L["Battlefield"]
+end
+
+if E.Mists or E.Wrath or E.TBC then
+	toggles.arenaRegistrar = L["Arena Registrar"]
+end
+
+if E.Classic or E.TBC then
+	toggles.craft = L["Craft"]
+end
+
+if not (E.Classic or E.Forever) then
+	toggles.socket = L["Socket Frame"]
+end
+
+if not E.Retail then
+	toggles.questTimers = L["Quest Timers"]
+end
+
+if not E.Forever then
+	toggles.spellbook = L["SPELLBOOK"]
+end
+
+if E.Modern then
+	toggles.binding = L["KEY_BINDINGS"]
+	toggles.cooldownManager = L["Cooldown Manager"]
+	toggles.damageMeter = L["Damage Meter"]
+	toggles.deathRecap = L["DEATH_RECAP_TITLE"]
+	toggles.guide = L["Guide Frame"]
+	toggles.itemInteraction = L["Item Interaction"]
+	toggles.objectiveTracker = L["OBJECTIVES_TRACKER_LABEL"]
+	toggles.subscriptionInterstitial = L["Subscription Interstitial"]
+	toggles.talkinghead = L["Talking Head"]
+end
+
+if E.Retail then
+	toggles.housing = L["Housing"]
+	toggles.adventureMap = L["ADVENTURE_MAP_TITLE"]
+	toggles.alliedRaces = L["Allied Races"]
+	toggles.animaDiversion = L["Anima Diversion"]
+	toggles.artifact = L["ITEM_QUALITY6_DESC"]
+	toggles.remixArtifact = format('%s %s', L["Remix"], L["ITEM_QUALITY6_DESC"])
+	toggles.azerite = L["Azerite"]
+	toggles.azeriteEssence = L["Azerite Essence"]
+	toggles.azeriteRespec = L["AZERITE_RESPEC_TITLE"]
+	toggles.campsites = L["Campsite"]
+	toggles.chromieTime = L["Chromie Time Frame"]
+	toggles.contribution = L["Contribution"]
+	toggles.covenantPreview = L["Covenant Preview"]
+	toggles.covenantRenown = L["Covenant Renown"]
+	toggles.covenantSanctum = L["Covenant Sanctum"]
+	toggles.expansionLanding = L["Expansion Landing Page"]
+	toggles.garrison = L["GARRISON_LOCATION_TOOLTIP"]
+	toggles.genericTrait = L["Generic Trait"]
+	toggles.islandQueue = L["ISLANDS_HEADER"]
+	toggles.islandsPartyPose = L["Island Party Pose"]
+	toggles.majorFactions = L["Major Factions"]
+	toggles.obliterum = L["OBLITERUM_FORGE_TITLE"]
+	toggles.orderhall = L["Orderhall"]
+	toggles.perks = L["Trading Post"]
+	toggles.playerChoice = L["Player Choice Frame"]
+	toggles.runeforge = L["Runeforge"]
+	toggles.scrapping = L["SCRAP_BUTTON"]
+	toggles.soulbinds = L["Soulbinds"]
+	toggles.torghastLevelPicker = L["Torghast Level Picker"]
+	toggles.weeklyRewards = L["Weekly Rewards"]
+elseif E.Forever then
+	toggles.legacySystem = L["Legacy System"]
+	toggles.swingTimer = L["Swing Timer"]
+elseif E.Mists then
+	toggles.reforge = L["Reforge"]
+elseif E.Classic then
+	toggles.engraving = L["Engraving"]
+end
+
+local function ToggleSkins(value)
+	E.ShowPopup = true
+
+	for key in pairs(E.private.skins.blizzard) do
+		if key ~= 'enable' then
+			E.private.skins.blizzard[key] = value
+		end
+	end
+end
+
+local Skins = ACH:Group(L["Skins"], nil, 2, 'tab')
+E.Options.args.skins = Skins
+
+Skins.args.intro = ACH:Description(L["SKINS_DESC"], 0)
+Skins.args.general = ACH:MultiSelect(L["General"], nil, 1, { ace3Enable = 'Ace3', libDropdown = L["Library Dropdown"], blizzardEnable = L["Blizzard"], checkBoxSkin = L["CheckBox Skin"], parchmentRemoverEnable = L["Parchment Remover"] }, nil, 140, function(_, key) if key == 'blizzardEnable' then return E.private.skins.blizzard.enable else return E.private.skins[key] end end, function(_, key, value) if key == 'blizzardEnable' then E.private.skins.blizzard.enable = value else E.private.skins[key] = value end E.ShowPopup = true end, nil, nil, true)
+
+Skins.args.talkingHead = ACH:Group(L["Talking Head"], nil, 2, nil, function(info) return E.db.general[info[#info]] end, nil, nil, not E.Modern)
+Skins.args.talkingHead.args.talkingHeadFrameScale = ACH:Range(L["Talking Head Scale"], nil, 1, { min = .5, max = 2, step = .01, isPercent = true }, nil, nil, function(_, value) E.db.general.talkingHeadFrameScale = value; BL:ScaleTalkingHeadFrame() end)
+Skins.args.talkingHead.args.talkingHeadFrameBackdrop = ACH:Toggle(L["Talking Head Backdrop"], nil, 2, nil, nil, nil, nil, function(_, value) E.db.general.talkingHeadFrameBackdrop = value; E.ShowPopup = true end)
+Skins.args.talkingHead.inline = true
+
+Skins.args.disableBlizzardSkins = ACH:Execute(L["Disable Blizzard Skins"], nil, 3, function() ToggleSkins(false) end)
+Skins.args.enableBlizzardSkins = ACH:Execute(L["Enable Blizzard Skins"], nil, 4, function() ToggleSkins(true) end)
+
+Skins.args.blizzard = ACH:MultiSelect(L["Blizzard"], L["TOGGLESKIN_DESC"], -1, toggles, nil, nil, function(_, key) return E.private.skins.blizzard[key] end, function(_, key, value) E.private.skins.blizzard[key] = value; E.ShowPopup = true end, function() return not E.private.skins.blizzard.enable end, nil, true)

@@ -1,0 +1,423 @@
+local E, L = unpack(ElvUI)
+local _G = _G
+local Deformat = _G.LibStub("LibDeformat-3.0")
+local CreateFrame = _G.CreateFrame
+local GetItemQualityColor = _G.C_Item and _G.C_Item.GetItemQualityColor or _G.GetItemQualityColor
+local GetItemInfo = _G.C_Item and _G.C_Item.GetItemInfo or _G.GetItemInfo
+local COMBAT = _G.COMBAT
+local LOOT_ITEM_SELF_MULTIPLE = _G.LOOT_ITEM_SELF_MULTIPLE
+local stringupper = _G.string.upper
+local LOOT_ITEM_PUSHED_SELF_MULTIPLE = _G.LOOT_ITEM_PUSHED_SELF_MULTIPLE
+local LOOT_ITEM_SELF = _G.LOOT_ITEM_SELF
+local LOOT_ITEM_PUSHED_SELF = _G.LOOT_ITEM_PUSHED_SELF
+local LOOT_ITEM_CREATED_SELF_MULTIPLE = _G.LOOT_ITEM_CREATED_SELF_MULTIPLE
+local LOOT_ITEM_CREATED_SELF = _G.LOOT_ITEM_CREATED_SELF
+local TRADESKILL_LOG_FIRSTPERSON = _G.TRADESKILL_LOG_FIRSTPERSON
+local ERR_INV_FULL = _G.ERR_INV_FULL
+local INVENTORY_FULL = _G.INVENTORY_FULL
+local LOOT_MONEY_SPLIT = _G.LOOT_MONEY_SPLIT
+local YOU_LOOT_MONEY = _G.YOU_LOOT_MONEY
+local LOOT_CURRENCY_REFUND = _G.LOOT_CURRENCY_REFUND
+local LOOT_MONEY_REFUND = _G.LOOT_MONEY_REFUND
+local SILVER_AMOUNT = _G.SILVER_AMOUNT
+local GOLD_AMOUNT = _G.GOLD_AMOUNT
+local COPPER_AMOUNT = _G.COPPER_AMOUNT
+local CURRENCY_GAINED_MULTIPLE_BONUS = _G.CURRENCY_GAINED_MULTIPLE_BONUS
+local CURRENCY_GAINED_MULTIPLE = _G.CURRENCY_GAINED_MULTIPLE
+local CURRENCY_GAINED = _G.CURRENCY_GAINED
+local C_CurrencyInfo = _G.C_CurrencyInfo
+local tonumber = _G.tonumber
+local ipairs = _G.ipairs
+local math = _G.math
+local table = _G.table
+
+--Create the loottext frame
+local LootTextframe = CreateFrame("Frame", "EltruismLoot")
+local combatindicatorframe = CreateFrame("Frame")
+local errorthrottle = false
+
+--recreate blizzard combat text (somewhat) to get it working again
+local EltruismCombatText = CreateFrame("Frame", "EltruismCombatText", _G.UIParent)
+EltruismCombatText:SetSize(250, 40)
+EltruismCombatText:SetPoint("BOTTOM", _G.UIParent, "BOTTOM", 0, 277)
+EltruismCombatText.fontStringPool = _G.CreateFontStringPool(EltruismCombatText, "ARTWORK", 0, "CombatTextFont")
+EltruismCombatText.activeFontStrings = {}
+EltruismCombatText.textLocations = {
+	startX = 0,
+	startY = 0,
+	endX = 0,
+	endY = 160
+}
+EltruismCombatText.xDir = 1
+EltruismCombatText.textSpacing = 10
+EltruismCombatText.textOffsetAdjustment = 40
+EltruismCombatText.textOffsetMax = 60
+
+local function EltruismScroll(frame, value)
+	local scrollSpeed = (_G.CombatTextConstants and _G.CombatTextConstants.MessageScrollSpeed) or 1.9
+	local textLocations = frame.textLocations or { startX = 0, startY = 0, endX = 0, endY = 160 }
+	local xPos = value.startX + (((textLocations.endX or 0) - (textLocations.startX or 0)) * value.scrollTime / scrollSpeed)
+	local yPos = value.startY + (((value.endY or 160) - (textLocations.startY or 0)) * value.scrollTime / scrollSpeed)
+	return xPos, yPos
+end
+EltruismCombatText.StandardScroll = EltruismScroll
+
+--CombatTextMixin:EnumerateActiveFontStrings()
+function EltruismCombatText:EnumerateActiveFontStrings()
+	return ipairs(self.activeFontStrings)
+end
+
+--CombatTextMixin:ReleaseFontString(fontString)
+function EltruismCombatText:ReleaseFontString(fontString)
+	local index = _G.tIndexOf(self.activeFontStrings, fontString)
+	if index then
+		self.fontStringPool:Release(fontString)
+		table.remove(self.activeFontStrings, index)
+	end
+	if #self.activeFontStrings == 0 then
+		self:SetScript("OnUpdate", nil)
+	end
+end
+
+--CombatTextMixin:AcquireFontString() but with my font options
+function EltruismCombatText:InitializeFontString(fontString)
+	fontString:SetFontObject(_G.CombatTextFont or "CombatTextFont")
+	fontString:SetAlpha(0)
+	fontString:ClearAllPoints()
+	fontString:SetPoint("CENTER", self, "CENTER", self.textLocations.startX or 0, self.textLocations.startY or 0)
+
+	if E.db.ElvUI_EltreumUI.loot.loottext.fontsetting then
+		fontString:SetFont(E.media.normFont, E.db.ElvUI_EltreumUI.loot.loottext.fontsize, ElvUI_EltreumUI:FontFlag(E.db.general.fontStyle))
+	elseif E.db.ElvUI_EltreumUI.loot.loottext.fontsettingdmg then
+		fontString:SetFont(E.private.general.dmgfont, E.db.ElvUI_EltreumUI.loot.loottext.fontsize, ElvUI_EltreumUI:FontFlag(E.db.general.fontStyle))
+	elseif E.db.ElvUI_EltreumUI.loot.loottext.fontLSMenable then
+		fontString:SetFont(E.LSM:Fetch("font", E.db.ElvUI_EltreumUI.loot.loottext.fontLSM), E.db.ElvUI_EltreumUI.loot.loottext.fontsize, ElvUI_EltreumUI:FontFlag(E.db.general.fontStyle))
+	end
+	fontString:SetShadowColor(0, 0, 0, 0)
+end
+
+--CombatTextMixin:AcquireFontString()
+function EltruismCombatText:AcquireFontString()
+	local fontString = self.fontStringPool:Acquire()
+	if fontString then
+		self:InitializeFontString(fontString)
+		return fontString
+	end
+end
+
+--CombatTextMixin:ClearAnimationList()
+function EltruismCombatText:ClearAnimationList()
+	for _, fontString in self:EnumerateActiveFontStrings() do
+		fontString:SetAlpha(0)
+		fontString:Hide()
+		fontString:ClearAllPoints()
+		fontString:SetPoint("CENTER", self, "CENTER", self.textLocations.startX or 0, self.textLocations.startY or 0)
+	end
+end
+
+--CombatTextMixin:UpdateDisplayedMessages
+function EltruismCombatText:UpdateDisplayedMessages()
+	-- do nothing so blizzard doesnt change stuff
+end
+
+--CombatTextMixin:OnUpdate
+function EltruismCombatText:OnUpdate(elapsed)
+	local alpha, xPos, yPos
+	local scrollSpeed = (_G.CombatTextConstants and _G.CombatTextConstants.MessageScrollSpeed) or 1.9
+	local fadeOutTime = (_G.CombatTextConstants and _G.CombatTextConstants.MessageFadeOutTime) or 1.3
+
+	for _, value in self:EnumerateActiveFontStrings() do
+		if value.scrollTime >= scrollSpeed then
+			self:ReleaseFontString(value)
+		else
+			value.scrollTime = value.scrollTime + elapsed
+			xPos, yPos = (value.scrollFunction or EltruismScroll)(self, value)
+			value.yPos = yPos
+
+			value:ClearAllPoints()
+			value:SetPoint("CENTER", self, "CENTER", xPos, yPos)
+
+			if value.scrollTime >= fadeOutTime then
+				alpha = 1 - ((value.scrollTime - fadeOutTime) / (scrollSpeed - fadeOutTime))
+				alpha = math.max(alpha, 0)
+				value:SetAlpha(alpha)
+			end
+		end
+	end
+end
+
+--Blizzard_CombatText, but with custom stuff
+function EltruismCombatText:AddMessage(message, scrollFunction, r, g, b, _, isStaggered)
+	local fontString = self:AcquireFontString()
+	if not fontString then return end
+
+	--update fonts
+	if E.db.ElvUI_EltreumUI.loot.loottext.fontsetting then
+		fontString:SetFont(E.media.normFont, E.db.ElvUI_EltreumUI.loot.loottext.fontsize, ElvUI_EltreumUI:FontFlag(E.db.general.fontStyle))
+	elseif E.db.ElvUI_EltreumUI.loot.loottext.fontsettingdmg then
+		fontString:SetFont(E.private.general.dmgfont, E.db.ElvUI_EltreumUI.loot.loottext.fontsize, ElvUI_EltreumUI:FontFlag(E.db.general.fontStyle))
+	elseif E.db.ElvUI_EltreumUI.loot.loottext.fontLSMenable then
+		fontString:SetFont(E.LSM:Fetch("font", E.db.ElvUI_EltreumUI.loot.loottext.fontLSM), E.db.ElvUI_EltreumUI.loot.loottext.fontsize, ElvUI_EltreumUI:FontFlag(E.db.general.fontStyle))
+	end
+	fontString:SetShadowColor(0, 0, 0, 0)
+
+	fontString:SetText(message)
+	fontString:SetTextColor(r or 1, g or 1, b or 1)
+	fontString.scrollTime = 0
+	if scrollFunction and scrollFunction ~= EltruismScroll and (not _G.CombatTextUtil or scrollFunction ~= _G.CombatTextUtil.StandardScroll) then
+		fontString.scrollFunction = scrollFunction
+	else
+		fontString.scrollFunction = EltruismScroll
+	end
+
+	local lowestMessage = self.textLocations.startY or 0
+	for _, value in self:EnumerateActiveFontStrings() do
+		if value ~= fontString and value.yPos and (lowestMessage >= value.yPos - 16 - self.textSpacing) then
+			lowestMessage = value.yPos - 16 - self.textSpacing
+		end
+	end
+
+	local useXadjustment = 0
+	if lowestMessage < ((self.textLocations.startY or 0) - self.textOffsetMax) then
+		self.textOffsetAdjustment = self.textOffsetAdjustment * -1
+		useXadjustment = 1
+		lowestMessage = (self.textLocations.startY or 0) - self.textOffsetMax
+	end
+
+	fontString.endY = self.textLocations.endY or 160
+
+	-- Stagger the text if flagged
+	local staggerRange = (_G.CombatTextConstants and _G.CombatTextConstants.StaggerRange) or 20
+	local staggerAmount = 0
+	if isStaggered then
+		local fastrandom = _G.fastrandom or math.random
+		staggerAmount = fastrandom(0, staggerRange) - staggerRange / 2
+	end
+
+	-- Alternate x direction
+	self.xDir = (self.xDir or 1) * -1
+	if useXadjustment == 1 then
+		if self.textOffsetAdjustment > 0 then
+			self.xDir = -1
+		else
+			self.xDir = 1
+		end
+	end
+	fontString.xDir = self.xDir
+	fontString.startX = (self.textLocations.startX or 0) + staggerAmount + (useXadjustment * self.textOffsetAdjustment)
+	fontString.startY = lowestMessage
+	fontString.yPos = lowestMessage
+	fontString:ClearAllPoints()
+	fontString:SetPoint("CENTER", self, "CENTER", fontString.startX, lowestMessage)
+	fontString:SetAlpha(1)
+	fontString:Show()
+	table.insert(self.activeFontStrings, fontString)
+
+	if not self:GetScript("OnUpdate") then
+		self:SetScript("OnUpdate", self.OnUpdate)
+	end
+end
+
+local skillMsg = ""
+local function printSkillMsg()
+	EltruismCombatText:AddMessage(skillMsg, EltruismScroll, 255, 255, 255, nil, true)
+end
+
+function ElvUI_EltreumUI:UpdateLootText()
+	if not EltruismCombatText then return end
+	EltruismCombatText:SetScale(E.db.ElvUI_EltreumUI.loot.loottext.scale or 0.65)
+	EltruismCombatText:SetFrameStrata(E.db.ElvUI_EltreumUI.loot.loottext.strata or "BACKGROUND")
+end
+
+function ElvUI_EltreumUI:LootText()
+
+	--moving the combat text
+	if not EltruismCombatText.IsInitialized then
+		E:CreateMover(EltruismCombatText, "MoverEltruismLootText", L["LootText"] or "LootText", nil, nil, nil, "ALL,SOLO,ELTREUMUI", nil, 'ElvUI_EltreumUI,loot,loottext')
+		EltruismCombatText.IsInitialized = true
+	end
+
+	ElvUI_EltreumUI:UpdateLootText()
+
+	local itemLink = nil
+	local amount = 0
+
+	if E.db.ElvUI_EltreumUI.loot.loottext.combatindicator then
+		combatindicatorframe:RegisterEvent("PLAYER_REGEN_ENABLED")
+		combatindicatorframe:RegisterEvent("PLAYER_REGEN_DISABLED")
+		combatindicatorframe:SetScript("OnEvent", function(_,event)
+			if event == "PLAYER_REGEN_DISABLED" then
+				if E.db.ElvUI_EltreumUI.loot.loottext.combatindicatorcustom.enable then
+					EltruismCombatText:AddMessage(E.db.ElvUI_EltreumUI.loot.loottext.combatindicatorcustom.enter, EltruismScroll, E.db.ElvUI_EltreumUI.loot.loottext.combatindicatorcustom.entercolor.r, E.db.ElvUI_EltreumUI.loot.loottext.combatindicatorcustom.entercolor.g, E.db.ElvUI_EltreumUI.loot.loottext.combatindicatorcustom.entercolor.b, nil, true)
+				else
+					EltruismCombatText:AddMessage("|cffFF0000+"..stringupper(COMBAT).."|r", EltruismScroll, 1, 0, 0, nil, true)
+				end
+			end
+			if event == "PLAYER_REGEN_ENABLED" then
+				if E.db.ElvUI_EltreumUI.loot.loottext.combatindicatorcustom.enable then
+					EltruismCombatText:AddMessage(E.db.ElvUI_EltreumUI.loot.loottext.combatindicatorcustom.leave, EltruismScroll, E.db.ElvUI_EltreumUI.loot.loottext.combatindicatorcustom.leavecolor.r, E.db.ElvUI_EltreumUI.loot.loottext.combatindicatorcustom.leavecolor.g, E.db.ElvUI_EltreumUI.loot.loottext.combatindicatorcustom.leavecolor.b, nil, true)
+				else
+					EltruismCombatText:AddMessage("|cffFFFFFF-"..stringupper(COMBAT).."|r", EltruismScroll, 1, 0, 0, nil, true)
+				end
+			end
+		end)
+	else
+		combatindicatorframe:UnregisterAllEvents()
+		combatindicatorframe:SetScript("OnEvent", nil)
+	end
+
+	if E.db.ElvUI_EltreumUI.loot.loottext.enable then
+		LootTextframe:RegisterEvent("UI_ERROR_MESSAGE")
+		LootTextframe:RegisterEvent("CHAT_MSG_LOOT")
+		LootTextframe:RegisterEvent("CHAT_MSG_MONEY")
+		LootTextframe:RegisterEvent("CHAT_MSG_CURRENCY")
+		LootTextframe:RegisterEvent("CHAT_MSG_COMBAT_HONOR_GAIN")
+		LootTextframe:RegisterEvent("CHAT_MSG_SKILL") --profession level up
+		--LootTextframe:RegisterEvent("CHAT_MSG_TRADESKILLS")
+		LootTextframe:RegisterEvent("LOOT_OPENED")
+
+		local function getLoot(chatmsg)
+			-- check for multiple-item-loot
+			local itemLink2, amount2 = Deformat(chatmsg, LOOT_ITEM_SELF_MULTIPLE)
+			if not itemLink2 then
+				itemLink2, amount2 = Deformat(chatmsg, LOOT_ITEM_PUSHED_SELF_MULTIPLE)
+			end
+			-- check for single-itemloot
+			if not itemLink2 then
+				itemLink2 = Deformat(chatmsg, LOOT_ITEM_SELF)
+			end
+			if not itemLink2 then
+				itemLink2, amount2 = Deformat(chatmsg, LOOT_ITEM_PUSHED_SELF)
+			end
+			--check for created item
+			if not itemLink2 then
+				itemLink2,amount2 = Deformat(chatmsg, LOOT_ITEM_CREATED_SELF_MULTIPLE)
+			end
+			if not itemLink2 then
+				itemLink2,amount2 = Deformat(chatmsg, LOOT_ITEM_CREATED_SELF)
+			end
+			if not itemLink2 then
+				itemLink2,amount2 = Deformat(chatmsg, TRADESKILL_LOG_FIRSTPERSON)
+			end
+			-- if something has been looted
+			if itemLink2 then
+				if not amount2 then
+					amount2 = 1
+				end
+				return itemLink2, amount2
+			end
+		end
+
+		local function resetErrorThrottle()
+			errorthrottle = false
+		end
+
+		LootTextframe:SetScript("OnEvent",function(_, event, arg1, arg2)
+			if event == "UI_ERROR_MESSAGE" and arg2 == ERR_INV_FULL then
+				if not errorthrottle then
+					EltruismCombatText:AddMessage(INVENTORY_FULL, EltruismScroll, 1, 0, 0, nil, true) --apparently it spams for some people
+					errorthrottle = true
+					E:Delay(3, resetErrorThrottle)
+				end
+			end
+			if (event == "CHAT_MSG_LOOT") then
+				itemLink, amount = getLoot(arg1)
+				if E.db.ElvUI_EltreumUI.loot.loottext.pet then
+					if itemLink and itemLink:match("|Hbattlepet:") then
+						EltruismCombatText:AddMessage("|T ".. 132599 ..":18:18:0:0:64:64:5:59:5:59|t|t  "..itemLink, EltruismScroll, 255, 255, 255, nil, true)
+					end
+				end
+				if itemLink and not itemLink:match("|Hbattlepet:") then
+					local lootName, _, rarity, _, _, _, _, _, _, lootTexture, _, _, _, _, _, _, _ = GetItemInfo(itemLink)
+					local lootQuantity = amount
+					if not rarity then return end
+					local r, g, b, _ = GetItemQualityColor(rarity)
+					if rarity >= tonumber(E.db.ElvUI_EltreumUI.loot.loottext.quality) then
+						if lootQuantity >= 2 then
+							EltruismCombatText:AddMessage("|T ".. lootTexture ..":18:18:0:0:64:64:5:59:5:59|t|t".."  "..lootQuantity.." x "..lootName, EltruismScroll, r, g, b, nil, true)
+						else
+							EltruismCombatText:AddMessage("|T ".. lootTexture ..":18:18:0:0:64:64:5:59:5:59|t|t".."  "..lootName, EltruismScroll, r, g, b, nil, true)
+						end
+					end
+				end
+			end
+			if E.db.ElvUI_EltreumUI.loot.loottext.currency then
+				if (event == "CHAT_MSG_MONEY") then
+					local moneystring = Deformat(arg1, LOOT_MONEY_SPLIT) or Deformat(arg1, YOU_LOOT_MONEY)
+					if not moneystring then
+						moneystring = Deformat(arg1, LOOT_CURRENCY_REFUND) or Deformat(arg1, LOOT_MONEY_REFUND)
+					end
+					if moneystring then
+						if moneystring:match(SILVER_AMOUNT) and not moneystring:match(GOLD_AMOUNT) then
+							EltruismCombatText:AddMessage("|T ".. 133786 ..":18:18:0:0:64:64:5:59:5:59|t|t  "..moneystring, EltruismScroll, 255, 255, 255, nil, true)
+						elseif moneystring:match(COPPER_AMOUNT) and not moneystring:match(SILVER_AMOUNT) and not moneystring:match(GOLD_AMOUNT) then
+							EltruismCombatText:AddMessage("|T ".. 133788 ..":18:18:0:0:64:64:5:59:5:59|t|t  "..moneystring, EltruismScroll, 255, 255, 255, nil, true)
+						elseif moneystring:match(GOLD_AMOUNT) then
+							EltruismCombatText:AddMessage("|T ".. 133784 ..":18:18:0:0:64:64:5:59:5:59|t|t  "..moneystring, EltruismScroll, 255, 255, 255, nil, true)
+						else
+							EltruismCombatText:AddMessage("|T ".. 133784 ..":18:18:0:0:64:64:5:59:5:59|t|t  "..moneystring, EltruismScroll, 255, 255, 255, nil, true)
+						end
+					end
+				end
+				if E.Modern then
+					if (event == "CHAT_MSG_CURRENCY") then
+						itemLink, amount = Deformat(arg1, CURRENCY_GAINED_MULTIPLE_BONUS)
+						if not amount then
+							itemLink, amount = Deformat(arg1, CURRENCY_GAINED_MULTIPLE)
+						end
+						if not amount then
+							itemLink = Deformat(arg1, CURRENCY_GAINED)
+							amount = 1
+						end
+						if itemLink then
+							local info = C_CurrencyInfo.GetCurrencyInfoFromLink(itemLink)
+							local lootTexture = info["iconFileID"]
+							local lootName = info["name"]
+							local lootQuantity = amount
+							if lootQuantity >= 2 then
+								EltruismCombatText:AddMessage("|T ".. lootTexture ..":18:18:0:0:64:64:5:59:5:59|t|t".."  "..lootQuantity.." x "..lootName, EltruismScroll, 255, 255, 255, nil, true)
+							else
+								EltruismCombatText:AddMessage("|T ".. lootTexture ..":18:18:0:0:64:64:5:59:5:59|t|t".."  "..lootName, EltruismScroll, 255, 255, 255, nil, true)
+							end
+						end
+					end
+				end
+			end
+			if E.db.ElvUI_EltreumUI.loot.loottext.honor then
+				if (event == "CHAT_MSG_COMBAT_HONOR_GAIN") then
+					itemLink, amount = Deformat(arg1, CURRENCY_GAINED_MULTIPLE_BONUS)
+					if not amount then
+						itemLink, amount = Deformat(arg1, CURRENCY_GAINED_MULTIPLE)
+					end
+					if not amount then
+						itemLink = Deformat(arg1, CURRENCY_GAINED)
+						amount = 1
+					end
+					if itemLink then
+						if not amount then
+						amount = 1
+						end
+						local info = C_CurrencyInfo.GetCurrencyInfoFromLink(itemLink)
+						local lootTexture = info["iconFileID"]
+						local lootName = info["name"]
+						local lootQuantity = amount
+						if lootQuantity >= 2 then
+							EltruismCombatText:AddMessage("|T ".. lootTexture ..":18:18:0:0:64:64:5:59:5:59|t|t".."  "..lootQuantity.." x "..lootName, EltruismScroll, 255, 255, 255, nil, true)
+						else
+							EltruismCombatText:AddMessage("|T ".. lootTexture ..":18:18:0:0:64:64:5:59:5:59|t|t".."  "..lootName, EltruismScroll, 255, 255, 255, nil, true)
+						end
+					end
+				end
+			end
+			if E.db.ElvUI_EltreumUI.loot.loottext.skill then
+				if event == 'CHAT_MSG_SKILL' and arg2 == "" then
+					skillMsg = arg1
+					E:Delay(0.5, printSkillMsg)
+				end
+			end
+		end)
+	else
+		LootTextframe:UnregisterAllEvents()
+		LootTextframe:SetScript("OnEvent", nil)
+	end
+end

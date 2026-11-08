@@ -1,0 +1,192 @@
+local E = unpack(ElvUI)
+local S = E:GetModule('Skins')
+local _G = _G
+local select = _G.select
+local next = _G.next
+
+--dbm skin, made to look similar to bigwigs
+function ElvUI_EltreumUI:DBMSkin()
+	if E.db.ElvUI_EltreumUI.skins.dbm then
+		if not _G.DBT then return end
+		_G.hooksecurefunc(_G.DBT, 'CreateBar', function(bars) --line 248
+			for bar in bars:GetBarIterator() do --line 560, returns pairs(self.bars)
+				if not bar.EltruismSkin then
+					_G.hooksecurefunc(bar, "ApplyStyle", function() --line 927
+						local statusbar = _G[bar.frame:GetName()..'Bar']
+						local icon = _G[bar.frame:GetName()..'BarIcon1']
+						local spark = _G[bar.frame:GetName().."BarSpark"]
+						spark:Hide()
+
+						bar.frame:SetHeight(15) --same as bigwigs
+						bar.frame:SetTemplate("Transparent")
+						statusbar:SetOutside(bar.frame)
+
+						icon:SetSize(22.5,22.5) --(bar.frame:GetHeight()*1.5, bar.frame:GetHeight()*1.5)
+						icon:SetTexCoord(0.08,0.92,0.08,0.92)
+						icon:ClearAllPoints()
+						icon:SetPoint("BOTTOMRIGHT", bar.frame, "BOTTOMLEFT", E.PixelMode and -5 or -10, 0)
+
+						--shadows
+						if E.db.ElvUI_EltreumUI.skins.shadow and not E.db.ElvUI_EltreumUI.borders.universalborders then
+							if not bar.frame.shadow then
+								bar.frame:CreateShadow(E.db.ElvUI_EltreumUI.skins.shadow.length)
+								ElvUI_EltreumUI:ShadowColor(bar.frame.shadow)
+							end
+							if icon:IsShown() and not statusbar.shadow then
+								statusbar:CreateShadow(E.db.ElvUI_EltreumUI.skins.shadow.length)
+								ElvUI_EltreumUI:ShadowColor(statusbar.shadow)
+								statusbar.shadow:ClearAllPoints()
+								statusbar.shadow:SetPoint("BOTTOMLEFT", icon,"BOTTOMLEFT", -E.db.ElvUI_EltreumUI.skins.shadow.length, -E.db.ElvUI_EltreumUI.skins.shadow.length)
+								statusbar.shadow:SetPoint("TOPLEFT", icon,"TOPLEFT", -E.db.ElvUI_EltreumUI.skins.shadow.length, E.db.ElvUI_EltreumUI.skins.shadow.length)
+								statusbar.shadow:SetPoint("BOTTOMRIGHT", icon,"BOTTOMRIGHT", E.db.ElvUI_EltreumUI.skins.shadow.length, -E.db.ElvUI_EltreumUI.skins.shadow.length)
+								statusbar.shadow:SetPoint("TOPRIGHT", icon,"TOPRIGHT", E.db.ElvUI_EltreumUI.skins.shadow.length, E.db.ElvUI_EltreumUI.skins.shadow.length)
+							end
+						end
+						--gradient is very memory intensive in this case due to how colors are set by dbm, changing all the time
+						--[[if not statusbar.EltruismHook then
+							hooksecurefunc(statusbar,"SetStatusBarColor",function(_,r,g,b)
+								if not (r or g or b) then return end
+								if E.Modern or E.Mists or E.TBC or E.Wrath then
+									statusbar:GetStatusBarTexture():SetGradient(E.db.ElvUI_EltreumUI.unitframes.gradientmode.orientation, {r=r-0.5,g= g-0.5,b= b-0.5,a= 0.9}, {r=r+0.2,g= g+0.2,b= b+0.2,a= 0.9})
+								else
+									statusbar:GetStatusBarTexture():SetGradientAlpha(E.db.ElvUI_EltreumUI.unitframes.gradientmode.orientation, r-0.5, g-0.5, b-0.5, 0.9, r+0.2, g+0.2, b+0.2, 0.9)
+								end
+								statusbar.EltruismHook=true
+							end)
+						end]]
+						bar.EltruismSkin = true
+					end)
+					bar:ApplyStyle()
+				end
+			end
+		end)
+	end
+end
+S:AddCallbackForAddon('DBM-StatusBarTimers', "EltruismDBM", ElvUI_EltreumUI.DBMSkin)
+
+local function SkinSubframe(frame)
+	if frame:GetChildren() then
+		for i = 1, frame:GetNumChildren() do
+			local v = select(i, frame:GetChildren())
+			if v and not v.EltruismSkin then
+				if v:GetObjectType() == "Button" then
+					if v:GetDebugName():match("DropDown") then
+						local width = v:GetWidth()
+						S:HandleDropDownBox(v, width, true)
+						if v.Text then
+							v.Text:ClearAllPoints()
+							v.Text:SetPoint("CENTER", v.backdrop, "CENTER", 0,0)
+						end
+					elseif v:GetDebugName():match("Close") then
+						S:HandleCloseButton(v)
+					elseif v:GetDebugName():match("Toggle") then
+						v.EltruismSkin = true
+					else
+						S:HandleButton(v)
+					end
+				elseif v:GetObjectType() == "EditBox" then
+					S:HandleEditBox(v)
+				elseif v:GetObjectType() == "Slider" then
+					S:HandleSliderFrame(v)
+				elseif v:GetObjectType() == "CheckButton" then
+					S:HandleCheckBox(v)
+				end
+				v.EltruismSkin = true
+				SkinSubframe(v) --keep going until there arent any subframes
+			end
+		end
+	end
+end
+
+local function SkinGUI()
+	--this is likely not a good idea...
+	for _, v in next, _G.DBM_GUI.panels do
+		if v and v.frame and not v.frame.EltruismSkin then
+			if v.frame:GetObjectType() == "Button" then
+				if v:GetDebugName():match("DropDown") then
+					local width = v:GetWidth()
+					S:HandleDropDownBox(v, width, true)
+					if v.Text then
+						v.Text:ClearAllPoints()
+						v.Text:SetPoint("CENTER", v.backdrop, "CENTER", 0,0)
+					end
+				elseif v:GetDebugName():match("Toggle") then
+					v.EltruismSkin = true
+				else
+					S:HandleButton(v)
+				end
+			elseif v.frame:GetObjectType() == "EditBox" then
+				S:HandleEditBox(v.frame)
+			elseif v.frame:GetObjectType() == "Slider" then
+				S:HandleSliderFrame(v.frame)
+			elseif v.frame:GetObjectType() == "CheckButton" then
+				S:HandleCheckBox(v.frame)
+			end
+			SkinSubframe(v.frame) --check for subframes
+			v.EltruismSkin = true
+		end
+	end
+	SkinSubframe(_G["DBM_GUI_OptionsFrame"])
+end
+
+--dbm gui
+function ElvUI_EltreumUI:DBMGUISkin()
+	if E.db.ElvUI_EltreumUI.skins.dbm then
+		if not _G.DBM_GUI then return end
+		_G.hooksecurefunc(_G.DBM_GUI, "ShowHide", function()
+			if _G["DBM_GUI_OptionsFrame"]:IsShown() then
+				if _G["DBM_GUI_OptionsFrame"] and not _G["DBM_GUI_OptionsFrame"].EltruismSkin then
+					S:HandleFrame(_G["DBM_GUI_OptionsFrame"])
+					if E.db.ElvUI_EltreumUI.skins.shadow then
+						if not _G["DBM_GUI_OptionsFrame"].shadow then
+							_G["DBM_GUI_OptionsFrame"]:CreateShadow(E.db.ElvUI_EltreumUI.skins.shadow.length)
+							ElvUI_EltreumUI:ShadowColor(_G["DBM_GUI_OptionsFrame"].shadow)
+						end
+					end
+					_G["DBM_GUI_OptionsFrame"].EltruismSkin = true
+				end
+				if _G["DBM_GUI_OptionsFramePanelContainerFOVScrollBar"] and not _G["DBM_GUI_OptionsFramePanelContainerFOVScrollBar"].EltruismSkin then
+					S:HandleScrollBar(_G["DBM_GUI_OptionsFramePanelContainerFOVScrollBar"])
+					_G["DBM_GUI_OptionsFramePanelContainerFOVScrollBar"].EltruismSkin = true
+				end
+				for i = 1, 6 do
+					if _G["DBM_GUI_OptionsFrameTab"..i] and not _G["DBM_GUI_OptionsFrameTab"..i].EltruismSkin then
+						S:HandleTab(_G["DBM_GUI_OptionsFrameTab"..i])
+						if _G["DBM_GUI_OptionsFrameTab"..i].Text then
+							_G["DBM_GUI_OptionsFrameTab"..i].Text:ClearAllPoints()
+							_G["DBM_GUI_OptionsFrameTab"..i].Text:SetPoint("CENTER", _G["DBM_GUI_OptionsFrameTab"..i])
+						end
+						_G["DBM_GUI_OptionsFrameTab"..i].EltruismSkin = true
+					end
+				end
+				if _G["DBM_GUI_OptionsFrameWebsiteButton"] and not _G["DBM_GUI_OptionsFrameWebsiteButton"].EltruismSkin then
+					S:HandleButton(_G["DBM_GUI_OptionsFrameWebsiteButton"])
+					_G["DBM_GUI_OptionsFrameWebsiteButton"].EltruismSkin = true
+				end
+				if _G["DBM_GUI_OptionsFrameOkay"] and not _G["DBM_GUI_OptionsFrameOkay"].EltruismSkin then
+					S:HandleButton(_G["DBM_GUI_OptionsFrameOkay"])
+					_G["DBM_GUI_OptionsFrameOkay"].EltruismSkin = true
+				end
+				if _G["DBM_GUI_DropDown"] and not _G["DBM_GUI_DropDown"].EltruismSkin then
+					S:HandleFrame(_G["DBM_GUI_DropDown"])
+					_G["DBM_GUI_DropDown"].EltruismSkin = true
+				end
+				if _G["DBM_GUI_OptionsFrameClosePanelButton"] and not _G["DBM_GUI_OptionsFrameClosePanelButton"].EltruismSkin then
+					S:HandleCloseButton(_G["DBM_GUI_OptionsFrameClosePanelButton"])
+					_G["DBM_GUI_OptionsFrameClosePanelButton"].EltruismSkin = true
+				end
+				SkinGUI()
+			end
+		end)
+		_G.hooksecurefunc(_G.DBM_GUI, "UpdateModList", function()
+			SkinGUI()
+		end)
+		_G.hooksecurefunc(_G.DBM_GUI, "CreateBossModPanel", function()
+			SkinGUI()
+		end)
+		_G.hooksecurefunc(_G.DBM_GUI, 'CreateBossModTab', function()
+			SkinGUI()
+		end)
+	end
+end
+S:AddCallbackForAddon('DBM-GUI', "EltruismDBMGUI", ElvUI_EltreumUI.DBMGUISkin)

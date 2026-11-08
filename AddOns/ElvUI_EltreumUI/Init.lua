@@ -1,0 +1,600 @@
+-- This whole plugin started based in LuckyoneUI, which was the simplest to understand. Full thanks to him for making it and allowing its use!
+-- It wouldn't be possible without the ElvUI community after all
+local E = unpack(ElvUI)
+local EP = LibStub('LibElvUIPlugin-1.0')
+local addon = ...
+local _G = _G
+ElvUI_EltreumUI = E:NewModule(addon, 'AceHook-3.0', 'AceEvent-3.0', 'AceTimer-3.0', 'AceConsole-3.0')
+local GetAddOnMetadata = _G.C_AddOns and _G.C_AddOns.GetAddOnMetadata or _G.GetAddOnMetadata
+local GetSpecialization = _G.C_SpecializationInfo and _G.C_SpecializationInfo.GetSpecialization or _G.GetSpecialization
+local GetSpecializationInfo = _G.C_SpecializationInfo and _G.C_SpecializationInfo.GetSpecializationInfo or _G.GetSpecializationInfo
+local stringfind = _G.string.find
+local stringgsub = _G.string.gsub
+
+--Binding
+_G.BINDING_HEADER_ELTRUISM = GetAddOnMetadata(..., 'Title')
+_G["BINDING_NAME_CLICK EltruismQuestItem1:LeftButton"] = "Quest Item 1"
+_G["BINDING_NAME_CLICK EltruismQuestItem2:LeftButton"] = "Quest Item 2"
+_G["BINDING_NAME_CLICK EltruismQuestItem3:LeftButton"] = "Quest Item 3"
+_G["BINDING_NAME_CLICK EltruismQuestItem4:LeftButton"] = "Quest Item 4"
+_G["BINDING_NAME_CLICK EltruismQuestItem5:LeftButton"] = "Quest Item 5"
+_G["BINDING_NAME_CLICK EltruismQuestItem6:LeftButton"] = "Quest Item 6"
+_G["BINDING_NAME_CLICK EltruismQuestItem7:LeftButton"] = "Quest Item 7"
+_G["BINDING_NAME_CLICK EltruismQuestItem8:LeftButton"] = "Quest Item 8"
+_G["BINDING_NAME_CLICK EltruismQuestItem9:LeftButton"] = "Quest Item 9"
+_G["BINDING_NAME_CLICK EltruismQuestItem10:LeftButton"] = "Quest Item 10"
+_G["BINDING_NAME_CLICK EltruismQuestItem11:LeftButton"] = "Quest Item 11"
+_G["BINDING_NAME_CLICK EltruismQuestItem12:LeftButton"] = "Quest Item 12"
+
+--Constants
+local rawVersion,extra = GetAddOnMetadata("ElvUI_EltreumUI", 'Version')
+if stringfind(rawVersion, 'project%-version') then
+	ElvUI_EltreumUI.Version = "5.1.6-Dev"
+	ElvUI_EltreumUI.DevRelease = true
+elseif extra and extra ~= "" then
+	ElvUI_EltreumUI.DevRelease = true
+else
+	ElvUI_EltreumUI.Version = stringgsub(rawVersion, "^v", "")
+	ElvUI_EltreumUI.DevRelease = false
+end
+ElvUI_EltreumUI.Config = {}
+--ElvUI_EltreumUI.Name = '|cff82B4ffEltruism|r'
+ElvUI_EltreumUI.Name = E:TextGradient("Eltruism", 0.50, 0.70, 1, 0.67, 0.95, 1)
+ElvUI_EltreumUI.Spec = 0
+
+function ElvUI_EltreumUI:PLAYER_ENTERING_WORLD()
+	if not E.private.ElvUI_EltreumUI.install_version then
+		return
+	end
+	ElvUI_EltreumUI:CombatMusic('PLAYER_ENTERING_WORLD')
+	if not ElvDB.EltruismDisabledAddOns then
+		ElvDB.EltruismDisabledAddOns = {}
+	end
+	if E.Modern then --due to an issue in retail disable the scoreboard skin (_G.PVPMatchScoreboard)
+		E.private.skins.blizzard.bgscore = false
+	end
+
+	if _G.InCombatLockdown() then
+		ElvUI_EltreumUI:Print("Reloading while in combat is not recommended and you are very likely to break several addons.")
+	end
+	if E.db.ElvUI_EltreumUI.unitframes.lightmode or E.db.ElvUI_EltreumUI.unitframes.darkmode then
+		E.db.ElvUI_EltreumUI.unitframes.hasMode = true
+	else
+		E.db.ElvUI_EltreumUI.unitframes.hasMode = false
+	end
+
+	ElvUI_EltreumUI:OriginalClassColors() --original mage and warlock class colors, also shaman blue in classic
+	ElvUI_EltreumUI:CheckCompatibility() -- check for other stuff that might conflict
+	ElvUI_EltreumUI:VersionCheckInit() --checks for old versions
+	ElvUI_EltreumUI:LoadCommands() --loads chat commands
+	ElvUI_EltreumUI:AuthorMVPDonatorIcons() -- add author/donator/mvp icons
+	ElvUI_EltreumUI:Ace3Skin() --Ace3 Skin hook setup
+	ElvUI_EltreumUI:SetTemplateSkin() -- hook settemplate elvui skin
+	E:Delay(0, function()
+		ElvUI_EltreumUI:BorderAdjust() --auto adjust actionbar/border if option is enabled
+		ElvUI_EltreumUI:Borders() --creates borders if option is enabled
+		ElvUI_EltreumUI:GroupBorderColorUpdate()
+	end)
+	ElvUI_EltreumUI:SkinVehicleButton() -- re-skin vehicle button like elvui did
+	ElvUI_EltreumUI:CacheGradients()
+	ElvUI_EltreumUI:GradientColorTableUpdate() -- should load table on init
+	ElvUI_EltreumUI:InitTooltip()
+	ElvUI_EltreumUI:ClassIconsOnCharacterPanel() --adds class icons to character panel
+	ElvUI_EltreumUI:CursorInit() --starts cursor modules
+	ElvUI_EltreumUI:SkinMailZone() --skins zone change messages and mail font
+	ElvUI_EltreumUI:RaidShadows() --adds shadows to raid groups
+	ElvUI_EltreumUI:AutoScreenshot() --takes screenshots when certain events are fired
+	ElvUI_EltreumUI:FriendlyNameplates() -- controls hiding healthbar from friendly nameplates inside instances
+	ElvUI_EltreumUI:ShamanTextureMode() -- applies the dark color to shaman powers in TBC/Classic
+	ElvUI_EltreumUI:Anchors() --creates anchors for error frame and weakaura that can be used to attack weakauras to elvui's unitframe visibility settings
+	ElvUI_EltreumUI:UnitframeRoleIcons() --adds custom role icons in chat when swapping roles
+	ElvUI_EltreumUI:DynamicChatFade() --adds chat fade/hide functions
+	ElvUI_EltreumUI:StealthOptions() --adds an overlay when in stealth
+	--ElvUI_EltreumUI:DynamicSpellStealStyleFilter() -- toggles spellsteal filter for mages based on their level
+	ElvUI_EltreumUI:DynamicExperienceDatabar() --makes experience bar mouseover or not depending on current player level
+	ElvUI_EltreumUI:BlizzCombatText() --enables or disables blizzard's combat text depending on player setting in eltruism
+	ElvUI_EltreumUI:ArenaBattlegroundGroupUnitframes() --hides elvui unitframes in bgs/arenas
+	ElvUI_EltreumUI:DynamicBuffs() --shows enemy player buffs on nameplates/unitframes if in arena/bgs, hides otherwise
+	ElvUI_EltreumUI:EnteringWorldCVars() --set cvars at the start
+	ElvUI_EltreumUI:RaidDeathGroupCheck() -- attempt at prevent CLEU tracking
+	ElvUI_EltreumUI:AutoAcceptQuests() -- yet another auto accept quest thing
+	ElvUI_EltreumUI:QuestItem() -- quest item bar merged from QBar by Aezay with edits to work in TBC/Classic
+	ElvUI_EltreumUI:ExpandedCharacterStats() --attempt at improving the character panel
+	ElvUI_EltreumUI:DeathSound() -- set the party/raid death sound
+	ElvUI_EltreumUI:PlayerDeathAnimation() -- death animation
+	ElvUI_EltreumUI:DeleteItem() -- automatically type delete
+	ElvUI_EltreumUI:SkillGlow() --makes skill glow using libcustomglow
+	ElvUI_EltreumUI:BattleRes() --bres count/cd
+	ElvUI_EltreumUI:HideABKeyPress() -- hide keypress if user wants
+	ElvUI_EltreumUI:NameplateRestedOverlaps() -- sets overlaps depending if rested/not
+	ElvUI_EltreumUI:PlayerUFEffects() -- model effect on player/target
+	if not E.Modern then
+		ElvUI_EltreumUI:Doom() -- fork of Doom's Cooldown Pulse
+	end
+	ElvUI_EltreumUI:LootText() -- gets the combat text going if not enabled
+	ElvUI_EltreumUI:FixChatToggles() --attach left/right chat toggle to the new datatext
+	ElvUI_EltreumUI:ArenaQuest() --hides quests when in arena/bgs
+	ElvUI_EltreumUI:SkinLevelUp() --skins level up toast
+	ElvUI_EltreumUI:ExpandedTalents() --makes talents fit in one window without scroll in classic, scale in retail
+	if E.Modern then
+		ElvUI_EltreumUI:ObjectiveTrackerAnchor()
+		if E.db.ElvUI_EltreumUI.quests.anchor then
+			ElvUI_EltreumUI:NewRetailEditModeLayout(true) --check if they dont have a custom edit mode, if not then add a new one to fix the anchor
+		end
+		if E.Retail then
+			ElvUI_EltreumUI.Spec = (E:NotSecretValue(GetSpecialization()) and GetSpecializationInfo(GetSpecialization())) or 0
+		else
+			if ElvUI_EltreumUI:CheckForeverSpec() then --returns nil if no value
+				ElvUI_EltreumUI.Spec = ElvUI_EltreumUI:CheckForeverSpec()
+			end
+		end
+		ElvUI_EltreumUI:ClickCastingShortcut() --adds a button to the spellbook to show the click casting menu
+		ElvUI_EltreumUI:WaypointTimeToArrive() --adds an ETA below waypoints
+		ElvUI_EltreumUI:UpdateSuperTrackedColor() --colors the waypoint icon
+		if E.Retail then
+			ElvUI_EltreumUI:EltruismHideTalkingHead() --hides talking head from world quests
+		else
+			ElvUI_EltreumUI:UpdateAvgIlvl() --updates the ilvl of the character at login so its not 0
+		end
+	else
+		if not E.Mists then
+			ElvUI_EltreumUI:DynamicClassicDatatext() --toggles datatext for warlocks/hunters to show soulshards/ammo
+			ElvUI_EltreumUI:UpdateAvgIlvl() --updates the ilvl of the character at login so its not 0
+			ElvUI_EltreumUI:ClassicSockets() --adds sockets and enchants into the character panel, based on Kibs Item Level by Kibsgaard
+		else
+			if E.myclass == 'HUNTER' then
+				ElvUI_EltreumUI:ExpandedStable()
+			end
+		end
+		ElvUI_EltreumUI:SkinProfessions() --makes professions wider
+	end
+	if E.Mists then
+		ElvUI_EltreumUI.Spec = GetSpecialization()
+	end
+	if not (E.Classic or E.TBC or E.Wrath or E.Forever) then
+		ElvUI_EltreumUI:DungeonRoleIcons() -- add spec icons to the lfg frame
+	end
+	ElvUI_EltreumUI:SkinQuests() --skins quest objective frame to be class colored
+	ElvUI_EltreumUI:WorldMapScale() -- set world map scale
+	if E.private.nameplates.enable then
+		ElvUI_EltreumUI:NamePlateOptions() --adds dynamic class based color filters to elvui nameplates
+		--ElvUI_EltreumUI:DynamicLevelStyleFilter() --shows or hides level filter on np based on player level
+		ElvUI_EltreumUI:UpdateNPwithoutBar() --updates buffs/debuffs positions on np based on powerbar settings
+
+		--return of custom nameplate heights
+		if E.db.ElvUI_EltreumUI.nameplates and E.db.ElvUI_EltreumUI.nameplates.nameplateOptions and E.db.ElvUI_EltreumUI.nameplates.nameplateOptions.enableHealthHeight then
+			ElvUI_EltreumUI:UpdateAllNameplateHeights()
+		end
+	end
+	if E.db.ElvUI_EltreumUI.dev and not E.Modern then --load dev tools if user enables
+		ElvUI_EltreumUI:DevTools()
+	end
+	ElvUI_EltreumUI:Shadows() --adds shadows to frames
+	ElvUI_EltreumUI:PlayerItemQuality("player") --add item quality texture to character panel skin
+	ElvUI_EltreumUI:CooldownColors() --changes cooldown colors to be class colored
+	ElvUI_EltreumUI:GradientMirrorLoot() --gradient misc frames like breath/lootroll
+	ElvUI_EltreumUI:MinimapCardinalDirections() -- minimap cardinal directions
+	ElvUI_EltreumUI:AutoCombatLog() -- automatic combat logging inside instances + advanced log for warcraftlogs
+	ElvUI_EltreumUI:FrameScales() --misc frames scales
+	ElvUI_EltreumUI:NPClassificatioNIcon() -- add different elite/rare icons to np
+	if not E.private.unitframe.disabledBlizzardFrames.raid then -- blizzard raid textures/gradient
+		ElvUI_EltreumUI:BlizzardTexturesGradient()
+	end
+	if E.db.ElvUI_EltreumUI.skins.cell then --Cell gradient/custom textures/shadows
+		ElvUI_EltreumUI:EltruismCell()
+	end
+	ElvUI_EltreumUI:HardcoreDeath() -- hardcore death sound/animation
+	ElvUI_EltreumUI:BagProfessions() -- add profession buttons to bags
+	ElvUI_EltreumUI:BordersTargetChanged() --fix borders for focus
+	ElvUI_EltreumUI:PerformanceCVars(false,true) --set some cvars that reset on login
+	ElvUI_EltreumUI:InitializePortraits(true) --blinkii's mmediatag portraits
+
+	--hardcore requires loading tags later so db is confirmed loaded
+	ElvUI_EltreumUI:LoadHealthTags()
+	ElvUI_EltreumUI:LoadIconTags()
+	ElvUI_EltreumUI:LoadNameTags()
+	ElvUI_EltreumUI:LoadOtherTags()
+	ElvUI_EltreumUI:GradientNameplatesHooks()
+	ElvUI_EltreumUI:InstanceIndicator() --for the instance texts
+end
+
+function ElvUI_EltreumUI:FIRST_FRAME_RENDERED()
+	ElvUI_EltreumUI:Ace3Skin() --Ace3 Skin hook setup
+	ElvUI_EltreumUI:SetTemplateSkin() -- hook settemplate elvui skin
+	E:Delay(3, function() --delay counting otherwise doesnt work in retail (where coroutines are)
+		if E.db.ElvUI_EltreumUI.unitframes.UFmodifications then
+			ElvUI_EltreumUI:CustomTexture("testunit")
+			ElvUI_EltreumUI:GradientUF("testunit")
+		end
+	end)
+end
+
+function ElvUI_EltreumUI:COMBAT_LOG_EVENT_UNFILTERED()
+	local _, eventType, _, _, _, _, _, _, _, destFlags = _G.CombatLogGetCurrentEventInfo()
+	if eventType == "UNIT_DIED" and E.db.ElvUI_EltreumUI.otherstuff.partyraiddeath.enable then
+		ElvUI_EltreumUI:RaidDeath(destFlags)
+	end
+end
+
+local UnitTokenFromGUID = _G.UnitTokenFromGUID
+local UnitInParty = _G.UnitInParty
+local UnitInRaid = _G.UnitInRaid
+function ElvUI_EltreumUI:UNIT_DIED(_,guid)
+	if guid and ElvUI_EltreumUI:IsThisASafeSecret(guid,true) then
+		local UnitToken = UnitTokenFromGUID(guid) --use api from 10.0 for getting token from guid
+		if ElvUI_EltreumUI:IsThisASafeSecret(UnitToken,true) then
+			if (UnitToken == "player") or (UnitToken == "pet") or UnitInParty(UnitToken) or UnitInRaid(UnitToken) then
+				ElvUI_EltreumUI:RaidDeath()
+			end
+		end
+	end
+end
+
+function ElvUI_EltreumUI:ENCOUNTER_START(event)
+	ElvUI_EltreumUI:QuestCombat(event)
+	ElvUI_EltreumUI:CombatMusic(event)
+	ElvUI_EltreumUI:BattleRes()
+end
+
+function ElvUI_EltreumUI:ENCOUNTER_END(event)
+	ElvUI_EltreumUI:QuestCombat(event)
+	ElvUI_EltreumUI:CombatMusic(event)
+	ElvUI_EltreumUI:BattleRes()
+end
+
+function ElvUI_EltreumUI:INSTANCE_ENCOUNTER_ENGAGE_UNIT(event)
+	ElvUI_EltreumUI:CombatMusic(event)
+	ElvUI_EltreumUI:QuestCombat(event)
+end
+
+function ElvUI_EltreumUI:DUEL_REQUESTED(event)
+	ElvUI_EltreumUI:CombatMusic(event)
+end
+
+function ElvUI_EltreumUI:DUEL_TO_THE_DEATH_REQUESTED(event)
+	ElvUI_EltreumUI:CombatMusic(event)
+end
+
+function ElvUI_EltreumUI:DUEL_FINISHED(event)
+	ElvUI_EltreumUI:CombatMusic(event)
+end
+
+function ElvUI_EltreumUI:CHAT_MSG_SYSTEM(event, ...)
+	ElvUI_EltreumUI:CombatMusic(event, ...)
+end
+
+function ElvUI_EltreumUI:PLAYER_DEAD(event)
+	ElvUI_EltreumUI:CombatMusic(event)
+end
+
+function ElvUI_EltreumUI:GROUP_ROSTER_UPDATE()
+	ElvUI_EltreumUI:RaidDeathGroupCheck()
+	--ElvUI_EltreumUI:Shadows()
+	if _G.IsInRaid() then
+		ElvUI_EltreumUI:RaidShadows()
+	end
+	if E.db.ElvUI_EltreumUI.unitframes.UFmodifications then
+		ElvUI_EltreumUI:GradientUF()
+		ElvUI_EltreumUI:CustomTexture()
+	end
+	if E.db.ElvUI_EltreumUI.borders.borders then
+		ElvUI_EltreumUI:GroupBorderColorUpdate()
+	end
+	if not E.private.unitframe.disabledBlizzardFrames.raid then -- blizzard raid textures/gradient
+		ElvUI_EltreumUI:BlizzardTexturesGradient()
+	end
+	if E.db.ElvUI_EltreumUI.skins.cell then --Cell gradient/custom textures/shadows
+		ElvUI_EltreumUI:EltruismCell()
+	end
+end
+
+function ElvUI_EltreumUI:PLAYER_FLAGS_CHANGED(_,unit)
+	if unit == "player" then
+		ElvUI_EltreumUI:NameplateRestedOverlaps()
+		ElvUI_EltreumUI:AFKmusic()
+		if E:UnitIsAFK("player") then
+			if E.db.general.afk then
+				ElvUI_EltreumUI:AFKLogo()
+			end
+		end
+	end
+end
+
+function ElvUI_EltreumUI:PLAYER_LEVEL_UP()
+	--ElvUI_EltreumUI:DynamicLevelStyleFilter()
+	ElvUI_EltreumUI:DynamicExperienceDatabar()
+	--ElvUI_EltreumUI:DynamicSpellStealStyleFilter()
+	ElvUI_EltreumUI:AutoScreenshot()
+end
+
+function ElvUI_EltreumUI:PLAYER_REGEN_ENABLED(event)
+	ElvUI_EltreumUI:CombatMusic(event)
+	ElvUI_EltreumUI:BlizzCombatText()
+	ElvUI_EltreumUI:QuestCombat(event)
+	ElvUI_EltreumUI:MinimapHide(event)
+	ElvUI_EltreumUI:DatatextHide(event)
+end
+
+function ElvUI_EltreumUI:PLAYER_REGEN_DISABLED(event)
+	ElvUI_EltreumUI:CombatMusic(event)
+	ElvUI_EltreumUI:QuestCombat(event)
+	ElvUI_EltreumUI:MinimapHide(event)
+	ElvUI_EltreumUI:DatatextHide(event)
+end
+
+function ElvUI_EltreumUI:UPDATE_STEALTH()
+	ElvUI_EltreumUI:StealthOptions()
+end
+
+function ElvUI_EltreumUI:ZONE_CHANGED()
+	ElvUI_EltreumUI:FriendlyNameplates()
+	ElvUI_EltreumUI:SkinMailZone()
+	if E.db.ElvUI_EltreumUI.otherstuff.minimapcardinaldirections.rotate then
+		ElvUI_EltreumUI:MinimapCardinalDirectionsRotateInstance()
+	end
+end
+
+function ElvUI_EltreumUI:ZONE_CHANGED_INDOORS()
+	ElvUI_EltreumUI:FriendlyNameplates()
+	ElvUI_EltreumUI:BattleRes()
+	ElvUI_EltreumUI:ArenaQuest()
+	if E.db.ElvUI_EltreumUI.otherstuff.minimapcardinaldirections.rotate then
+		ElvUI_EltreumUI:MinimapCardinalDirectionsRotateInstance()
+	end
+end
+
+function ElvUI_EltreumUI:ZONE_CHANGED_NEW_AREA()
+	E:Delay(5,function() ElvUI_EltreumUI:FriendlyNameplates() end)
+	ElvUI_EltreumUI:QuestItem()
+	if E.db.ElvUI_EltreumUI.otherstuff.minimapcardinaldirections.rotate then
+		ElvUI_EltreumUI:MinimapCardinalDirectionsRotateInstance()
+	end
+	ElvUI_EltreumUI:InstanceIndicator()
+end
+
+function ElvUI_EltreumUI:PLAYER_TARGET_CHANGED()
+	ElvUI_EltreumUI:NamePlateOptions()
+	ElvUI_EltreumUI:NameplatePower()
+	ElvUI_EltreumUI:NameplateModel()
+	ElvUI_EltreumUI:TargetUFEffects()
+	ElvUI_EltreumUI:TargetCombatIconClass()
+	if E.db.ElvUI_EltreumUI.borders.borders and E.db.ElvUI_EltreumUI.borders.classcolor then
+		ElvUI_EltreumUI:BordersTargetChanged()
+	end
+end
+
+local currenttalentretail = E.Modern and GetSpecialization()
+local currenttalentmists = (E.Mists or E.TBC or E.Wrath) and GetSpecialization()
+local GetActiveTalentGroup = _G.GetActiveTalentGroup
+local currenttalentclassic = (E.ClassicSOD or E.TBC or E.Wrath) and GetActiveTalentGroup()
+function ElvUI_EltreumUI:ACTIVE_TALENT_GROUP_CHANGED()
+	if E.Modern then
+		ElvUI_EltreumUI:ObjectiveTrackerAnchor() --fire the anchor again
+	end
+	local newtalentretail = E.Modern and GetSpecialization()
+	local cnewtalentmists = E.Mists and GetSpecialization() --GetActiveTalentGroup is going to be removed use C_SpecializationInfo.GetActiveSpecGroup instead TOOD
+	local cnewtalentclassic = (E.ClassicSOD or E.TBC or E.Wrath) and GetActiveTalentGroup()
+	if E.Retail then
+		ElvUI_EltreumUI.Spec = (E:NotSecretValue(GetSpecialization()) and GetSpecializationInfo(GetSpecialization())) or 0
+	elseif E.Forever then
+		if ElvUI_EltreumUI:CheckForeverSpec() then --returns nil if no value
+			ElvUI_EltreumUI.Spec = ElvUI_EltreumUI:CheckForeverSpec()
+		end
+	elseif E.Mists then
+		ElvUI_EltreumUI.Spec = GetSpecialization()
+	elseif E.ClassicSOD or E.TBC or E.Wrath then
+		ElvUI_EltreumUI.Spec = GetActiveTalentGroup()
+	end
+	if (E.Modern and currenttalentretail ~= newtalentretail) or (E.Mists and currenttalentmists ~= cnewtalentmists) or ((E.ClassicSOD or E.TBC or E.Wrath) and currenttalentclassic ~= cnewtalentclassic) then
+		currenttalentretail = newtalentretail
+		currenttalentmists = cnewtalentmists
+		currenttalentclassic = cnewtalentclassic
+		ElvUI_EltreumUI:ClassIconsOnCharacterPanel()
+		ElvUI_EltreumUI:FixChatToggles()
+		if E.Modern or (E.ClassicSOD or E.Mists or E.TBC or E.Wrath) then
+			ElvUI_EltreumUI:NamePlateOptions()
+			ElvUI_EltreumUI:Shadows()
+			if E.private.nameplates.enable then
+				ElvUI_EltreumUI:UpdateNPwithoutBar()
+			end
+			if E.db.ElvUI_EltreumUI.borders.borders then
+				E:Delay(2, function() ElvUI_EltreumUI:BorderAdjust() end)
+				E:Delay(2, function() ElvUI_EltreumUI:Borders() end)
+			end
+			E:Delay(2, function() ElvUI_EltreumUI:ShowHideBorders() end)
+			E:Delay(0.5, function() ElvUI_EltreumUI:ExpandedCharacterStats() end)
+		end
+	end
+end
+
+function ElvUI_EltreumUI:GOSSIP_SHOW()
+	if E.Retail and E.myclass == 'ROGUE' then
+		ElvUI_EltreumUI:RogueAutoOpen()
+	end
+end
+
+function ElvUI_EltreumUI:ACHIEVEMENT_EARNED()
+	ElvUI_EltreumUI:AutoScreenshot()
+end
+
+function ElvUI_EltreumUI:CHALLENGE_MODE_COMPLETED(event)
+	ElvUI_EltreumUI:AutoScreenshot()
+	ElvUI_EltreumUI:QuestCombat(event)
+end
+
+function ElvUI_EltreumUI:PLAYER_AVG_ITEM_LEVEL_UPDATE()
+	ElvUI_EltreumUI:UpdateAvgIlvl()
+end
+
+function ElvUI_EltreumUI:INSPECT_READY(_,unit)
+	E:Delay(0, function()
+		if _G.InspectFrame and _G.InspectFrame:IsVisible() then
+			ElvUI_EltreumUI:InspectBg(unit)
+		end
+	end)
+end
+
+function ElvUI_EltreumUI:UPDATE_PENDING_MAIL()
+	ElvUI_EltreumUI:BlizzMail()
+end
+
+function ElvUI_EltreumUI:PLAYER_LEAVING_WORLD()
+	ElvUI_EltreumUI:BlizzCombatText()
+end
+
+function ElvUI_EltreumUI:PLAYER_LOGOUT()
+	if _G.ElvUF_PlayerMover then
+		_G.ElvUF_PlayerMover:ClearAllPoints()
+	end
+	if _G.ElvUF_PlayerCastbarMover then
+		_G.ElvUF_PlayerCastbarMover:ClearAllPoints()
+	end
+	if _G.ElvUF_TargetCastbarMover then
+		_G.ElvUF_TargetCastbarMover:ClearAllPoints()
+	end
+	if _G.ElvUF_TargetMover then
+		_G.ElvUF_TargetMover:ClearAllPoints()
+	end
+	ElvUI_EltreumUI:BlizzCombatText()
+end
+
+function ElvUI_EltreumUI:CHALLENGE_MODE_START(event)
+	ElvUI_EltreumUI:QuestCombat(event)
+	ElvUI_EltreumUI:InstanceIndicator()
+end
+
+function ElvUI_EltreumUI:CHALLENGE_MODE_RESET(event)
+	ElvUI_EltreumUI:QuestCombat(event)
+	ElvUI_EltreumUI:InstanceIndicator()
+end
+
+function ElvUI_EltreumUI:PLAYER_DIFFICULTY_CHANGED()
+	ElvUI_EltreumUI:InstanceIndicator()
+end
+
+function ElvUI_EltreumUI:GUILD_PARTY_STATE_UPDATED()
+	ElvUI_EltreumUI:InstanceIndicator()
+end
+
+function ElvUI_EltreumUI:Initialize()
+	--since now Eltruism has both ElvUI Cvars and ElvUI Chat setup builtin we can skip elvui setup
+	if not E.private.ElvUI_EltreumUI.install_version then
+		if not E.private.install_complete then --check if they didnt install elvui bc eltruism will do the install things that elvui does
+			E.private.install_complete = E.version
+			E.private.ElvUI_EltreumUI.skippedcheck = true --this is in case they skip during install, when they'll need elvui install to popup again
+		end
+		ElvUI_EltreumUI:HidePopups(5)
+		E:GetModule('PluginInstaller'):Queue(ElvUI_EltreumUI.InstallerData)
+		return
+	end
+	--register the plugin config
+	EP:RegisterPlugin(addon, ElvUI_EltreumUI.Configtable,false,ElvUI_EltreumUI.Version)
+	--Register Events
+	ElvUI_EltreumUI:RegisterEvent('ENCOUNTER_START') --for quests and combat music
+	ElvUI_EltreumUI:RegisterEvent('ENCOUNTER_END') --for quests and combat music
+	ElvUI_EltreumUI:RegisterEvent('INSTANCE_ENCOUNTER_ENGAGE_UNIT') ----for quests and combat music
+	ElvUI_EltreumUI:RegisterEvent('DUEL_REQUESTED') --for duel music
+	if E.ClassicHC then
+		ElvUI_EltreumUI:RegisterEvent('DUEL_TO_THE_DEATH_REQUESTED') --for makgora duel music
+	end
+	ElvUI_EltreumUI:RegisterEvent('DUEL_FINISHED') --for duel music
+	ElvUI_EltreumUI:RegisterEvent('CHAT_MSG_SYSTEM') --for duel music
+	ElvUI_EltreumUI:RegisterEvent('PLAYER_DEAD') --for duel music
+	ElvUI_EltreumUI:RegisterEvent('GROUP_ROSTER_UPDATE') --to store group roster in order to compare in party/raid death
+	ElvUI_EltreumUI:RegisterEvent('PLAYER_ENTERING_WORLD') --for most of the addon
+	ElvUI_EltreumUI:RegisterEvent('PLAYER_FLAGS_CHANGED') -- for afk music
+	ElvUI_EltreumUI:RegisterEvent('PLAYER_LEVEL_UP') --for the level up skin
+	ElvUI_EltreumUI:RegisterEvent('PLAYER_REGEN_ENABLED') --for combat music/chat hide/unitframe hide
+	ElvUI_EltreumUI:RegisterEvent('PLAYER_REGEN_DISABLED') --for combat music/chat hide/unitframe hide
+	ElvUI_EltreumUI:RegisterEvent('UPDATE_STEALTH') --for stealth overlay
+	ElvUI_EltreumUI:RegisterEvent('ZONE_CHANGED_INDOORS') --for hiding healthbar in friendly np
+	ElvUI_EltreumUI:RegisterEvent('ZONE_CHANGED') --for hiding healthbar in friendly np
+	ElvUI_EltreumUI:RegisterEvent('ZONE_CHANGED_NEW_AREA') --for hiding healthbar in friendly np
+	ElvUI_EltreumUI:RegisterEvent('PLAYER_TARGET_CHANGED') --for power bar and light mode texture
+	ElvUI_EltreumUI:RegisterEvent('INSPECT_READY')
+	if E.Modern then
+		ElvUI_EltreumUI:RegisterEvent('GOSSIP_SHOW') --for rogue order hall
+		ElvUI_EltreumUI:RegisterEvent('CHALLENGE_MODE_COMPLETED') --for auto screenshot
+		ElvUI_EltreumUI:RegisterEvent('ACHIEVEMENT_EARNED') --for auto screenshot
+		ElvUI_EltreumUI:RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED")
+	end
+	if E.Mists or E.TBC or E.Wrath then
+		ElvUI_EltreumUI:RegisterEvent('ACHIEVEMENT_EARNED') --for auto screenshot
+		ElvUI_EltreumUI:RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED")
+		ElvUI_EltreumUI:RegisterEvent('CHALLENGE_MODE_COMPLETED') --for auto screenshot
+	end
+	if E.ClassicSOD then
+		ElvUI_EltreumUI:RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED")
+	end
+	if E.Classic then
+		ElvUI_EltreumUI:RegisterEvent('PLAYER_AVG_ITEM_LEVEL_UPDATE')
+	end
+	ElvUI_EltreumUI:RegisterEvent("FIRST_FRAME_RENDERED")
+	--because some cvars keep resetting for some reason
+	ElvUI_EltreumUI:RegisterEvent('PLAYER_LEAVING_WORLD')
+	ElvUI_EltreumUI:RegisterEvent('PLAYER_LOGOUT')
+	ElvUI_EltreumUI:RegisterEvent("UPDATE_PENDING_MAIL") --for mail sound/icon
+	if E.Retail then
+		ElvUI_EltreumUI:RegisterEvent("CHALLENGE_MODE_START") --for m+ hiding objective tracker
+		ElvUI_EltreumUI:RegisterEvent("CHALLENGE_MODE_COMPLETED") --for m+ hiding objective tracker
+		ElvUI_EltreumUI:RegisterEvent("CHALLENGE_MODE_RESET") --for m+ hiding objective tracker
+	end
+	ElvUI_EltreumUI:RegisterEvent("PLAYER_DIFFICULTY_CHANGED")
+	ElvUI_EltreumUI:RegisterEvent("GUILD_PARTY_STATE_UPDATED")
+end
+
+local function CallbackInitialize()
+	ElvUI_EltreumUI:Initialize()
+end
+E:RegisterModule(addon, CallbackInitialize)
+
+--12.1 event order list
+--[[local eventtester = CreateFrame("FRAME")
+local eventorder = {
+	["ADDON_LOADED"] = true,
+	["UPDATE_BINDINGS"] = true,
+	["UPDATE_CHAT_WINDOWS"] = true,
+	["UPDATE_FLOATING_CHAT_WINDOWS"] = true,
+	["DISPLAY_SIZE_CHANGED"] = true,
+	["UI_SCALE_CHANGED"] = true,
+	["CVAR_UPDATE"] = true,
+	["UPDATE_FACTION"] = true,
+	["VARIABLES_LOADED"] = true,
+	["UPDATE_MACROS"] = true,
+	["UPDATE_CHAT_COLOR"] = true,
+	["UPDATE_CHAT_COLOR_NAME_BY_CLASS"] = true,
+	["PLAYER_TALENT_UPDATE"] = true,
+	["PLAYER_PVP_TALENT_UPDATE"] = true,
+	["UPDATE_INVENTORY_DURABILITY"] = true,
+	["BAG_UPDATE"] = true,
+	["BAG_CONTAINER_UPDATE"] = true,
+	["UPDATE_VEHICLE_ACTIONBAR"] = true,
+	["SKILL_LINES_CHANGED"] = true,
+	["CURRENCY_DISPLAY_UPDATE"] = true,
+	["VEHICLE_ANGLE_SHOW"] = true,
+	["VEHICLE_POWER_SHOW"] = true,
+	["SPELL_ACTIVATION_OVERLAY_HIDE"] = true,
+	["MOUNT_JOURNAL_SEARCH_UPDATED"] = true,
+	["TRANSMOG_SEARCH_UPDATED"] = true,
+	["COMPACT_UNIT_FRAME_PROFILES_LOADED"] = true,
+	["INITIAL_CLUBS_LOADED"] = true,
+	["CONTENT_TRACKING_LIST_UPDATE"] = true,
+	["MENTORSHIP_STATUS_CHANGED"] = true,
+	["TRAIT_CONFIG_LIST_UPDATED"] = true,
+	["EDIT_MODE_LAYOUTS_UPDATED"] = true,
+	["CALENDAR_ACTION_PENDING"] = true,
+	["PLAYER_LOGIN"] = true,
+	["PLAYER_ENTERING_WORLD"] = true,
+	["OPEN_SPLASH_SCREEN"] = true,
+	["LOADING_SCREEN_DISABLED"] = true,
+	["FIRST_FRAME_RENDERED"] = true,
+	--["LOADING_SCREEN_ENABLED"] = true,
+	--["ADDONS_UNLOADING"] = true,
+}
+for event,_ in pairs(eventorder) do
+	eventtester:RegisterEvent(event)
+end
+eventtester:SetScript("OnEvent",function(_,event)
+	print(event)
+	eventtester:UnregisterEvent(event)
+end)]]

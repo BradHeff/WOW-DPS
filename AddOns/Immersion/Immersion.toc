@@ -1,0 +1,51 @@
+## Interface: 11509, 16001, 20506, 38010, 50500, 120100
+## IconTexture: Interface\AddOns\Immersion\Textures\Logo
+## Title: Immersion
+## Notes: Immersive replacement for quest & gossip
+## Version: 1.4.61
+
+## Author: Sebastian Lindfors
+## X-Website: https://github.com/seblindfors/Immersion
+## X-Curse-Project-ID: 257550
+## X-WoWI-ID: 24714
+## X-Wago-ID: RaN0MP6j
+
+## SavedVariables: ImmersionSetup
+## OptionalDeps: ConsolePort
+
+# Locale
+Locale\Locale.xml
+
+# Compatibility scripts
+Compat.lua
+Interface.lua
+
+# Extra stuff & config
+Utils.lua
+Config.lua
+Settings.lua
+Settings.xml
+
+# Components
+Components\Scaler.lua
+Components\Titles.lua
+Components\Text.lua
+Components\Model.lua
+Components\Button.lua
+Components\Tooltip.lua
+Components\Elements.lua
+
+# Display
+Display\Animation.lua
+Display\Frame.xml
+Display\Onload.lua
+Display\Fademgr.lua
+
+# Logic
+Logic\Input.lua
+Logic\Frame.lua
+Logic\Talkbox.lua
+Logic\Events.lua
+Logic\Inspector.lua
+Logic\Controller.lua
+Logic\Toast.lua

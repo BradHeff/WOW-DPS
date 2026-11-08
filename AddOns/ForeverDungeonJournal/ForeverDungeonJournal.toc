@@ -1,0 +1,73 @@
+## Interface: 16001
+## Title: DungeonJournal
+## Notes: Boss, loot and quest journal for WoW Classic dungeons.
+## Author: Exehn
+## Version: 1.7.1
+## IconTexture: Interface\Icons\INV_Misc_Book_09
+## AddonCompartmentFunc: ForeverDungeonJournal_OnAddonCompartmentClick
+## AddonCompartmentFuncOnEnter: ForeverDungeonJournal_OnAddonCompartmentEnter
+## AddonCompartmentFuncOnLeave: ForeverDungeonJournal_OnAddonCompartmentLeave
+## SavedVariables: ForeverDungeonJournalDB
+## SavedVariablesPerCharacter: ForeverDungeonJournalCharacterDB
+
+
+Core\Bootstrap.lua
+Localization\Localization.lua
+Localization\Locale_frFR.lua
+Localization\Locale_esES.lua
+Localization\Locale_ruRU.lua
+Localization\Locale_itIT.lua
+Localization\Locale_ptBR.lua
+Localization\Locale_koKR.lua
+Localization\Locale_zhCN.lua
+Localization\Locale_zhTW.lua
+Localization\Content_deDE.lua
+Localization\Content_frFR.lua
+Localization\Content_esES.lua
+Localization\Content_ruRU.lua
+Localization\Content_itIT.lua
+Localization\Content_ptBR.lua
+Localization\Content_koKR.lua
+Localization\Content_zhCN.lua
+Localization\Content_zhTW.lua
+Localization\Content_NewDungeons.lua
+Data\Dungeons.lua
+Data\SharedLoot.lua
+Data\DungeonEntrances.lua
+Data\DungeonRoutes.lua
+Data\Bosses.lua
+Data\QuestMaps.lua
+Data\QuestChains.lua
+Data\QuestRewards.lua
+Data\QuestShareability.lua
+Data\QuestUpdates.lua
+UI\ThemeData.lua
+UI\ItemComparisonData.lua
+Systems\MapMarkers.lua
+Systems\VersionCheck.lua
+Systems\LootFilter.lua
+Systems\Favourites.lua
+Systems\BugReport.lua
+Systems\PortraitPool.lua
+Systems\BakedPortraits.lua
+Core\Journal.lua
+Systems\ScarletWing.lua
+Systems\ItemSource.lua
+Systems\SettingsPanel.lua
+Systems\RPGMode.lua
+Systems\ForeverFilter.lua
+Systems\BossFactionTag.lua
+Systems\MapArtFinder.lua
+Systems\WingFromText.lua
+Systems\ItemIdLearner.lua
+Systems\BossSummon.lua
+Systems\MapNote.lua
+Systems\TooltipBacking.lua
+Systems\DoneTickTooltip.lua
+Systems\HomeBottomBand.lua
+Systems\LFGButton.lua
+Systems\QuestText.lua
+Systems\MapBossSize.lua
+Systems\WorldMapOverlay.lua
+Systems\Resize.lua
+Systems\OptionsPanel.lua

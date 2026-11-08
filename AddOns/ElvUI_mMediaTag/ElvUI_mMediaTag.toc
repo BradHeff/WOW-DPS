@@ -1,0 +1,31 @@
+## Interface: 11509, 16001, 20506, 50504, 120105
+## Author: Blinkii
+## Version: 4.19
+## Title: |CFF0294FFm|r|CFFBD26E5Media|r|CFFFF005DTag|r |CFF404040&|r  |CFFFF9D00Tools|r
+## Notes: ElvUI Plugin from Blinkii | Support: mMediaTag@gmx.de
+## IconTexture: Interface\AddOns\ElvUI_mMediaTag\media\icon_32
+## AddonCompartmentFunc: ElvUI_mMediaTag_OnAddonCompartmentClick
+## AddonCompartmentFuncOnEnter: ElvUI_mMediaTag_OnAddonCompartmentEnter
+## AddonCompartmentFuncOnLeave: ElvUI_mMediaTag_OnAddonCompartmentLeave
+## SavedVariables: MMTDATA
+## RequiredDeps: ElvUI
+## OptionalDeps: JiberishIcons, ElvUI_JiberishIcons
+## DefaultState: Enabled
+## X-Curse-Project-ID: 289502
+## X-Wago-ID: 9rN48AND
+
+lib\load_libs.xml
+
+localization\load_localization.xml
+
+init.lua
+core\load_core.xml
+core\load_core_mainline.xml [AllowLoadGameType standard]
+profiles\load_profiles.xml
+media\load_media.xml
+options\load_options.xml
+
+modules\load_modules.xml
+modules\load_modules_mainline.xml [AllowLoadGameType standard]
+modules\misc\objective_tracker.lua [AllowLoadGameType standard, camelot]
+modules\cooldownmanager\load_cooldownmanager.xml [AllowLoadGameType standard, camelot]

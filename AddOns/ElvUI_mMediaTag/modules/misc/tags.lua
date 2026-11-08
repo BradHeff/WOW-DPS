@@ -1,0 +1,610 @@
+local mMT, DB, M, E, P, L, MEDIA = unpack(ElvUI_mMediaTag)
+local module = mMT:AddModule("TAGs", { "AceEvent-3.0" })
+
+-- WoW API locals
+local UnitHealth = UnitHealth
+local UnitIsPlayer = UnitIsPlayer
+local UnitIsConnected = UnitIsConnected
+local UnitIsDead = UnitIsDead
+local UnitIsGhost = UnitIsGhost
+local UnitGUID = UnitGUID
+local UnitFactionGroup = UnitFactionGroup
+local UnitClass = UnitClass
+local UnitLevel = UnitLevel
+local UnitEffectiveLevel = UnitEffectiveLevel
+local UnitIsPVP = UnitIsPVP
+local UnitAffectingCombat = UnitAffectingCombat
+local UnitGroupRolesAssigned = UnitGroupRolesAssigned
+local UnitIsBattlePetCompanion = UnitIsBattlePetCompanion
+local UnitIsWildBattlePet = UnitIsWildBattlePet
+local UnitBattlePetLevel = UnitBattlePetLevel
+local IsResting = IsResting
+local GetInstanceInfo = GetInstanceInfo
+local CreateColor = CreateColor
+local EvalColor = C_CurveUtil and C_CurveUtil.EvaluateColorFromBoolean
+local GenerateTextColorCode = C_ColorUtil and C_ColorUtil.GenerateTextColorCode
+local WrapString = C_StringUtil and C_StringUtil.WrapString
+local GetClassColor = C_ClassColor and C_ClassColor.GetClassColor
+local CreateAtlasMarkup = CreateAtlasMarkup
+local CreateTextureMarkup = CreateTextureMarkup
+local strsplit = strsplit
+local format = format
+local tostring = tostring
+local tonumber = tonumber
+local pairs = pairs
+local next = next
+local type = type
+local ipairs = ipairs
+local unpack = unpack
+
+local db = {}
+local colors = MEDIA.color.tags
+local icons = MEDIA.icons.tags
+local noDecData
+
+local unitFactionCache = {}
+
+local shortClassificationsLabels = {
+	rare = L["R"],
+	rareelite = L["R+"],
+	elite = L["+"],
+	worldboss = L["B"],
+}
+local classificationsLabels = {
+	rare = L["Rare"],
+	rareelite = L["Rare Elite"],
+	elite = L["Elite"],
+	worldboss = L["Boss"],
+}
+
+local classificationsIcons = {
+	rare = icons.cs3,
+	rareelite = icons.cs5,
+	elite = icons.cs6,
+	worldboss = icons.cs8,
+}
+
+local roleColors = {
+	TANK = colors.tank,
+	HEALER = colors.healer,
+	DAMAGER = colors.dps,
+}
+
+local roleIcons = {
+	TANK = icons.tank,
+	HEALER = icons.healer,
+	DAMAGER = icons.dps,
+}
+
+local roleIconsBlizz = {
+	TANK = CreateAtlasMarkup("UI-LFG-RoleIcon-Tank", 16, 16),
+	HEALER = CreateAtlasMarkup("UI-LFG-RoleIcon-Healer", 16, 16),
+	DAMAGER = CreateAtlasMarkup("UI-LFG-RoleIcon-DPS", 16, 16),
+}
+
+local roleNames = {
+	TANK = L["Tank"],
+	HEALER = L["Healer"],
+	DAMAGER = L["DPS"],
+}
+
+-- fixed priority Offline > Dead > Ghost > AFK > DND; text/iconString are prebuilt in RebuildStatusIcons.
+local statusList = {
+	{
+		check = function(unit)
+			return not UnitIsConnected(unit)
+		end,
+		label = L["Offline"],
+		colorKey = "dc",
+		iconKey = "dc",
+	},
+	{
+		check = function(unit)
+			return UnitIsDead(unit)
+		end,
+		label = L["Dead"],
+		colorKey = "dead",
+		iconKey = "dead",
+	},
+	{
+		check = function(unit)
+			return UnitIsGhost(unit)
+		end,
+		label = L["Ghost"],
+		colorKey = "ghost",
+		iconKey = "ghost",
+	},
+	{
+		check = function(unit)
+			return E:UnitIsAFK(unit)
+		end,
+		label = L["AFK"],
+		colorKey = "afk",
+		iconKey = "afk",
+	},
+	{
+		check = function(unit)
+			return E:UnitIsDND(unit)
+		end,
+		label = L["DND"],
+		colorKey = "dnd",
+		iconKey = "dnd",
+	},
+}
+
+local instanceID = ""
+
+local function GetNoDecData()
+	if noDecData then return noDecData end
+
+	local style = E.db.general.numberPrefixStyle or "ENGLISH"
+	local asianStyles = { TCHINESE = true, CHINESE = true, KOREAN = true }
+	local isAsian = asianStyles[style] or false
+
+	local units = E.ShortPrefixStyles[style] or E.ShortPrefixStyles.ENGLISH
+	if not units then return E.Abbreviate["short"] end
+
+	-- significandDivisor values for 0 decimal places
+	local westernSigDivisors = { 1e12, 1e9, 1e6, 1e3 }
+	local asianSigDivisors = { 1e8, 1e4, 1e3 }
+
+	local signi = isAsian and asianSigDivisors or westernSigDivisors
+	local breakpoints = {}
+
+	for i = 1, #units do
+		breakpoints[i] = {
+			breakpoint = units[i][1],
+			abbreviation = units[i][2],
+			significandDivisor = signi[i],
+			fractionDivisor = 1,
+			abbreviationIsGlobal = false,
+		}
+	end
+
+	noDecData = { isAsian = isAsian }
+	if CreateAbbreviateConfig then
+		noDecData.config = CreateAbbreviateConfig(breakpoints)
+	else
+		noDecData.breakpoints = breakpoints
+	end
+
+	return noDecData
+end
+
+local function GetColorString(color)
+	return color and ":" .. tostring(color.r * 255) .. ":" .. tostring(color.g * 255) .. ":" .. tostring(color.b * 255) .. "|t"
+end
+
+local function GetFactionData(unit)
+	if E:IsSecretUnit(unit) or not UnitIsPlayer(unit) then return end
+
+	local guid = UnitGUID(unit)
+	if not guid then return end
+
+	if not unitFactionCache[guid] then
+		local factionGroup = UnitFactionGroup(unit)
+		if factionGroup then unitFactionCache[guid] = {
+			CreateTextureMarkup("Interface\\FriendsFrame\\PlusManz-" .. factionGroup, 16, 16, 16, 16, 0, 1, 0, 1, 0, 0),
+			factionGroup,
+		} end
+	end
+
+	return unitFactionCache[guid], guid
+end
+
+-- Wipe the faction cache on map/instance change so it cannot grow unbounded.
+local function UpdateInstanceState()
+	local _, _, _, _, _, _, _, iID = GetInstanceInfo()
+	local id = tostring(iID)
+
+	if id ~= instanceID then
+		instanceID = id
+		unitFactionCache = {}
+	end
+end
+
+local function RebuildRoleTables()
+	roleColors.TANK = colors.tank
+	roleColors.HEALER = colors.healer
+	roleColors.DAMAGER = colors.dps
+
+	roleIcons.TANK = MEDIA.icons.role[db.misc.tank]
+	roleIcons.HEALER = MEDIA.icons.role[db.misc.healer]
+	roleIcons.DAMAGER = MEDIA.icons.role[db.misc.dps]
+end
+
+-- prebuilt once here: colors/icons only change via settings, not per tag update.
+local classificationIconStrings = {}
+local pvpIconString, questIconString
+
+local function BuildIconString(icon, color)
+	local colorString = GetColorString(color)
+	return (icon and colorString) and ("|T" .. icon .. ":16:16:0:0:16:16:0:16:0:16" .. colorString) or nil
+end
+
+local function RebuildClassificationIcons()
+	classificationsIcons.rare = icons[db.classification.rare]
+	classificationsIcons.rareelite = icons[db.classification.rareelite]
+	classificationsIcons.elite = icons[db.classification.elite]
+	classificationsIcons.worldboss = icons[db.classification.worldboss]
+
+	classificationIconStrings.rare = BuildIconString(classificationsIcons.rare, colors.rare) or ""
+	classificationIconStrings.rareelite = BuildIconString(classificationsIcons.rareelite, colors.rareelite) or ""
+	classificationIconStrings.elite = BuildIconString(classificationsIcons.elite, colors.elite) or ""
+	classificationIconStrings.worldboss = BuildIconString(classificationsIcons.worldboss, colors.worldboss) or ""
+end
+
+local function RebuildStatusIcons()
+	for _, def in next, statusList do
+		local color = colors[def.colorKey]
+		def.text = color and color:WrapTextInColorCode(def.label) or def.label
+		def.iconString = BuildIconString(icons[db.status[def.iconKey]], color)
+	end
+end
+
+local function RebuildMiscIconStrings()
+	pvpIconString = BuildIconString(icons[db.misc.pvp], colors.pvp)
+	questIconString = BuildIconString(icons[db.misc.quest], colors.quest)
+end
+
+-- secret-safe; normalizes to the "worldboss" key used by the label/color/icon tables.
+local function GetTagClassification(unit)
+	local c = mMT:GetUnitClassification(unit)
+	if c == "boss" then c = "worldboss" end
+	return c
+end
+
+-- up to three args limit the tag to these classifications
+local function ArgsAllow(c, args)
+	if not args then return true end
+	local arg1, arg2, arg3 = strsplit(":", args)
+	return c == arg1 or c == arg2 or c == arg3
+end
+
+E:AddTag("mMT-classification", "UNIT_CLASSIFICATION_CHANGED INSTANCE_ENCOUNTER_ENGAGE_UNIT", function(unit, _, args)
+	local c = GetTagClassification(unit)
+	if not (c and ArgsAllow(c, args)) then return end
+
+	return colors[c] and classificationsLabels[c] and colors[c]:WrapTextInColorCode(classificationsLabels[c])
+end)
+E:AddTagInfo(
+	"mMT-classification",
+	mMT.NameShort .. " " .. L["Classification"],
+	L["Returns the classification of the unit. You can specify up to three arguments to display only certain classifications.\nFor example: [mMT-classification{rare:elite}] will only show something if the unit is either rare or elite."]
+)
+
+E:AddTag("mMT-classification:short", "UNIT_CLASSIFICATION_CHANGED INSTANCE_ENCOUNTER_ENGAGE_UNIT", function(unit, _, args)
+	local c = GetTagClassification(unit)
+	if not (c and ArgsAllow(c, args)) then return end
+
+	return colors[c] and shortClassificationsLabels[c] and colors[c]:WrapTextInColorCode(shortClassificationsLabels[c])
+end)
+E:AddTagInfo("mMT-classification:short", mMT.NameShort .. " " .. L["Classification"], L["Short Version."])
+
+E:AddTag("mMT-classification:icon", "UNIT_CLASSIFICATION_CHANGED INSTANCE_ENCOUNTER_ENGAGE_UNIT", function(unit, _, args)
+	local c = GetTagClassification(unit)
+	if not (c and ArgsAllow(c, args)) then return end
+
+	return classificationIconStrings[c] or ""
+end)
+E:AddTagInfo(
+	"mMT-classification:icon",
+	mMT.NameShort .. " " .. L["Classification"],
+	L["Returns the classification icon of the unit. You can specify up to three arguments to display only certain classifications.\nFor example: [mMT-classification:icon{rare:elite}] will only show something if the unit is either rare or elite."]
+)
+
+E:AddTag("mMT-status", "UNIT_HEALTH UNIT_CONNECTION PLAYER_FLAGS_CHANGED", function(unit)
+	for i = 1, #statusList do
+		local def = statusList[i]
+		if def.check(unit) then return def.text end
+	end
+end)
+E:AddTagInfo("mMT-status", mMT.NameShort .. " " .. L["Status"], L["Returns the status of the unit (AFK, DND, Offline, Dead, Ghost)."])
+
+E:AddTag("mMT-status:icon", "UNIT_HEALTH UNIT_CONNECTION PLAYER_FLAGS_CHANGED", function(unit)
+	for i = 1, #statusList do
+		local def = statusList[i]
+		if def.check(unit) then return def.iconString end
+	end
+end)
+E:AddTagInfo("mMT-status:icon", mMT.NameShort .. " " .. L["Status"], L["Returns the status icon of the unit (AFK, DND, Offline, Dead, Ghost)."])
+
+-- a secret unit can still be a player, so let the API pick between both colors; the code it returns stays secret, hence WrapString instead of a concat
+local function GetSecretColorCode(unit, npcColor)
+	-- a secret class token must not be tested for nil or used as a table key, only the API may read it
+	local _, class = UnitClass(unit)
+	local classColor
+	if E:IsSecretValue(class) then
+		classColor = GetClassColor(class)
+	elseif class then
+		classColor = E.oUF.colors.class[class]
+	end
+
+	-- EvaluateColorFromBoolean needs a real colorRGBA, class and reaction colors carry no alpha; secret channels are fine as arguments
+	local npc = CreateColor(npcColor.r, npcColor.g, npcColor.b, 1)
+	local color = classColor and EvalColor(UnitIsPlayer(unit), CreateColor(classColor.r, classColor.g, classColor.b, 1), npc) or npc
+
+	return WrapString(GenerateTextColorCode(color), "|c")
+end
+
+local function GetColorCode(unit, args, classcolor)
+	local c = GetTagClassification(unit)
+	local classification = c and colors[c]
+
+	if c and not ArgsAllow(c, args) then classification = nil end
+
+	-- ElvUIs classcolor branches on UnitIsPlayer and would throw on a secret unit
+	if E:IsSecretUnit(unit) then return GetSecretColorCode(unit, classification or E.oUF.colors.reaction[2]) end
+
+	if classification and not UnitIsPlayer(unit) then return "|c" .. classification.hex end
+
+	return classcolor(unit)
+end
+
+E:AddTag("mMT-color", "UNIT_NAME_UPDATE UNIT_FACTION UNIT_CLASSIFICATION_CHANGED INSTANCE_ENCOUNTER_ENGAGE_UNIT", function(unit, _, args)
+	return GetColorCode(unit, args, _TAGS.classcolor)
+end)
+E:AddTagInfo(
+	"mMT-color",
+	mMT.NameShort .. " " .. L["Color"],
+	L["Returns the color of the unit. Players are colored by class, NPCs by classification. You can specify up to three arguments to display only certain classifications.\nFor example: [mMT-color{rare:elite}] will only show something if the unit is either rare or elite."]
+)
+
+E:AddTag("mMT-color:target", "UNIT_TARGET", function(unit, _, args)
+	return GetColorCode(unit .. "target", args, _TAGS.classcolor)
+end)
+E:AddTagInfo("mMT-color:target", mMT.NameShort .. " " .. L["Color"], L["Same as mMT-color, but only for the units target."])
+
+-- the nodecimal data is rebuilt in Initialize, so it is looked up per call
+local function HealthText(unit, style)
+	return E:AbbreviateNumbers(UnitHealth(unit), style == "nodecimal" and noDecData or E.Abbreviate[style])
+end
+
+for _, info in ipairs({
+	{ "mMT-health", "long", true, L["Returns the current health of the unit (changes between current health and percent in combat)."] },
+	{ "mMT-health:short", "short", true, L["Short Version."] },
+	{ "mMT-health:short:nodecimal", "nodecimal", true, "Short Version. (No Decimal)" },
+	{ "mMT-health:current", "long", false, L["Returns the current health of the unit."] },
+	{ "mMT-health:current:short", "short", false, L["Short Version."] },
+	{ "mMT-health:current:short:nodecimal", "nodecimal", false, "Short Version. (No Decimal)" },
+}) do
+	local tag, style, percentInCombat, desc = unpack(info)
+	E:AddTag(tag, "UNIT_HEALTH UNIT_MAXHEALTH", function(unit)
+		if percentInCombat and UnitAffectingCombat(unit) then return _TAGS.perhp(unit) end
+		return HealthText(unit, style)
+	end)
+	E:AddTagInfo(tag, mMT.NameShort .. " " .. L["Health"], desc)
+end
+
+E:AddTag("mMT-health:percent", "UNIT_HEALTH UNIT_MAXHEALTH", function(unit)
+	if UnitAffectingCombat(unit) then return _TAGS.perhp(unit) end
+end)
+E:AddTagInfo("mMT-health:percent", mMT.NameShort .. " " .. L["Health"], L["Returns the current health percent of the unit (in combat)."])
+
+E:AddTag("mMT-role", "PLAYER_ROLES_ASSIGNED GROUP_ROSTER_UPDATE", function(unit)
+	if E:IsSecretUnit(unit) then return end
+
+	local unitRole = UnitGroupRolesAssigned(unit)
+	local color = roleColors[unitRole]
+	return color and color:WrapTextInColorCode(roleNames[unitRole]) or ""
+end)
+E:AddTagInfo("mMT-role", mMT.NameShort .. " " .. L["Miscellaneous"], L["Returns the role of the unit (Tank, Healer, DPS)."])
+
+E:AddTag("mMT-role:icon", "PLAYER_ROLES_ASSIGNED GROUP_ROSTER_UPDATE", function(unit)
+	if E:IsSecretUnit(unit) then return end
+
+	local unitRole = UnitGroupRolesAssigned(unit)
+	local icon = roleIcons[unitRole]
+	return icon and E:TextureString(icon, ":14:14") or ""
+end)
+E:AddTagInfo("mMT-role:icon", mMT.NameShort .. " " .. L["Miscellaneous"], L["Returns the role icon of the unit (Tank, Healer, DPS)."])
+
+E:AddTag("mMT-role:icon:blizz", "PLAYER_ROLES_ASSIGNED GROUP_ROSTER_UPDATE", function(unit)
+	if E:IsSecretUnit(unit) then return end
+
+	local unitRole = UnitGroupRolesAssigned(unit)
+	return roleIconsBlizz[unitRole] or ""
+end)
+E:AddTagInfo("mMT-role:icon:blizz", mMT.NameShort .. " " .. L["Miscellaneous"], L["Returns the role icon of the unit (Tank, Healer, DPS)."])
+
+E:AddTag("mMT-role:target", "PLAYER_ROLES_ASSIGNED GROUP_ROSTER_UPDATE", function(unit)
+	local target = unit .. "target"
+	if E:IsSecretUnit(target) then return end
+
+	local unitRole = UnitGroupRolesAssigned(target)
+	local color = roleColors[unitRole]
+	return color and color:WrapTextInColorCode(roleNames[unitRole]) or ""
+end)
+E:AddTagInfo("mMT-role:target", mMT.NameShort .. " " .. L["Miscellaneous"], L["Returns the role of the unit (Tank, Healer, DPS)."])
+
+E:AddTag("mMT-role:target:icon", "PLAYER_ROLES_ASSIGNED GROUP_ROSTER_UPDATE", function(unit)
+	local target = unit .. "target"
+	if E:IsSecretUnit(target) then return end
+
+	local unitRole = UnitGroupRolesAssigned(target)
+	local icon = roleIcons[unitRole]
+	return icon and E:TextureString(icon, ":14:14") or ""
+end)
+E:AddTagInfo("mMT-role:target:icon", mMT.NameShort .. " " .. L["Miscellaneous"], L["Returns the role icon of the unit (Tank, Healer, DPS)."])
+
+E:AddTag("mMT-role:target:icon:blizz", "PLAYER_ROLES_ASSIGNED GROUP_ROSTER_UPDATE", function(unit)
+	local target = unit .. "target"
+	if E:IsSecretUnit(target) then return end
+
+	local unitRole = UnitGroupRolesAssigned(target)
+	return roleIconsBlizz[unitRole] or ""
+end)
+E:AddTagInfo("mMT-role:target:icon:blizz", mMT.NameShort .. " " .. L["Miscellaneous"], L["Returns the role icon of the unit (Tank, Healer, DPS)."])
+
+E:AddTag("mMT-level", "UNIT_LEVEL PLAYER_LEVEL_UP PLAYER_UPDATE_RESTING", function(unit)
+	if unit == "player" and IsResting() then
+		return colors.resting:WrapTextInColorCode("Zzz")
+	else
+		local level = UnitLevel(unit)
+		if UnitIsWildBattlePet(unit) then
+			return UnitBattlePetLevel(unit)
+		elseif level > 0 then
+			return level
+		else
+			return colors.worldboss:WrapTextInColorCode("??")
+		end
+	end
+end)
+E:AddTagInfo("mMT-level", mMT.NameShort .. " " .. L["Level"], L["Returns the level of the unit. If the unit is at max level. If the player is resting, it will return a Zzz."])
+
+E:AddTag("mMT-level:smart", "UNIT_LEVEL PLAYER_LEVEL_UP PLAYER_UPDATE_RESTING", function(unit)
+	if unit == "player" and IsResting() then
+		return colors.resting:WrapTextInColorCode("Zzz")
+	else
+		local level = UnitEffectiveLevel(unit)
+		if UnitIsBattlePetCompanion(unit) then
+			return UnitBattlePetLevel(unit)
+		elseif level == UnitEffectiveLevel("player") then
+			return nil
+		elseif level > 0 then
+			return level
+		else
+			return colors.worldboss:WrapTextInColorCode("??")
+		end
+	end
+end)
+E:AddTagInfo(
+	"mMT-level:smart",
+	mMT.NameShort .. " " .. L["Level"],
+	L["Returns the level of the unit. If the unit is at max level or the same level as you, it will return nothing. If the player is resting, it will return a Zzz."]
+)
+
+E:AddTag("mMT-pvp", "UNIT_FACTION", function(unit)
+	if E:IsSecretUnit(unit) then return end
+
+	local factionGroup = UnitFactionGroup(unit)
+	if UnitIsPVP(unit) and (factionGroup == "Horde" or factionGroup == "Alliance") then return pvpIconString end
+end)
+E:AddTagInfo("mMT-pvp", mMT.NameShort .. " " .. L["Miscellaneous"], L["Returns a PvP icon if the unit is flagged for PvP and belongs to either the Horde or Alliance faction."])
+
+E:AddTag("mMT-faction", "UNIT_FACTION", function(unit)
+	local data = GetFactionData(unit)
+	if data and (data[2] == "Horde" or data[2] == "Alliance") then return data[2] end
+end)
+E:AddTagInfo("mMT-faction", mMT.NameShort .. " " .. L["Miscellaneous"], L["Returns the faction of the unit (Horde or Alliance)."])
+
+E:AddTag("mMT-faction:icon", "UNIT_FACTION", function(unit)
+	local data = GetFactionData(unit)
+	return data and data[1]
+end)
+E:AddTagInfo("mMT-faction:icon", mMT.NameShort .. " " .. L["Miscellaneous"], L["Returns the faction icon of the unit (Horde or Alliance)."])
+
+E:AddTag("mMT-faction:opposite", "UNIT_FACTION", function(unit)
+	local data = GetFactionData(unit)
+	local factionPlayer = UnitFactionGroup("Player")
+	if data and (data[2] == "Horde" or data[2] == "Alliance") and data[2] ~= factionPlayer then return data[2] end
+end)
+E:AddTagInfo("mMT-faction:opposite", mMT.NameShort .. " " .. L["Miscellaneous"], L["Returns the faction of the unit (Horde or Alliance), but only if it's the opposite faction of the player."])
+
+E:AddTag("mMT-faction:icon:opposite", "UNIT_FACTION", function(unit)
+	local data = GetFactionData(unit)
+	local factionPlayer = UnitFactionGroup("Player")
+	if data and (data[2] == "Horde" or data[2] == "Alliance") and data[2] ~= factionPlayer then return data[1] end
+end)
+E:AddTagInfo(
+	"mMT-faction:icon:opposite",
+	mMT.NameShort .. " " .. L["Miscellaneous"],
+	L["Returns the faction icon of the unit (Horde or Alliance), but only if it's the opposite faction of the player."]
+)
+
+-- UNIT_FLAGS covers entering and leaving combat, UNIT_COMBAT fired on every hit
+E:AddTag("mMT-power", "UNIT_DISPLAYPOWER UNIT_POWER_FREQUENT UNIT_MAXPOWER UNIT_FLAGS", function(unit)
+	if UnitAffectingCombat(unit) then return _TAGS.perpp(unit) end
+end)
+E:AddTagInfo("mMT-power", mMT.NameShort .. " " .. L["Power"], L["Returns the current power percent of the unit, but only while in combat."])
+
+-- blocked like ElvUI's own quest:title, which does not exist on vanilla
+E:AddTag("mMT-questicon", "QUEST_LOG_UPDATE", function(unit)
+	if UnitIsPlayer(unit) then return end
+	local isQuest = _TAGS["quest:title"](unit)
+	if isQuest then return questIconString end
+end, E.Classic)
+if not E.Classic then E:AddTagInfo("mMT-questicon", mMT.NameShort .. " " .. L["Miscellaneous"], L["Returns a quest icon if the unit is a quest mob."]) end
+
+do
+	local classIconNames = {}
+	for k, v in pairs(MEDIA.icons.class.icons.mmt) do
+		if type(v) == "table" then classIconNames[k] = v.name end
+	end
+	for k, v in pairs(MEDIA.icons.class.icons.custom) do
+		if type(v) == "table" and k ~= "BLIZZARD" then classIconNames[k] = v.name end
+	end
+
+	for style, _ in next, classIconNames do
+		local tag = format("%s:%s", "mMT-classicons", style)
+		E:AddTag(tag, "UNIT_NAME_UPDATE", function(unit, _, args)
+			if E:IsSecretUnit(unit) then return end
+			if not (UnitIsPlayer(unit) or (E.Modern and UnitInPartyIsAI(unit))) then return end
+
+			local _, class = UnitClass(unit)
+			if not class then return end
+
+			local size = strsplit(":", args or "")
+			size = tonumber(size)
+			size = (size and (size >= 16 and size <= 128)) and size or 64
+
+			local classIconStrings = MEDIA.icons.class.icons.custom[style] and MEDIA.icons.class.icons.custom[style].texString[class] or MEDIA.icons.class.data[class].texString
+			local textureFile = MEDIA.icons.class.icons.custom[style] and MEDIA.icons.class.icons.custom[style].texture or MEDIA.icons.class.icons.mmt[style].texture
+			if textureFile and classIconStrings then return format("|T%s:%s:%s:0:0:1024:1024:%s|t", textureFile, size, size, classIconStrings) end
+		end)
+		E:AddTagInfo(tag, mMT.NameShort .. " " .. L["Icons"], L["Returns the class icon of the unit. You can specify a size between 16 and 128 (default is 64). Example: mClassIcon:style{32}"])
+	end
+end
+
+do
+	local specIconNames = {}
+	for k, v in pairs(MEDIA.icons.spec.icons.mmt) do
+		if type(v) == "table" then specIconNames[k] = v.name end
+	end
+
+	for style, _ in next, specIconNames do
+		local tag = format("%s:%s", "mMT-specicons", style)
+		E:AddTag(tag, "UNIT_NAME_UPDATE", function(unit, _, args)
+			if E:IsSecretUnit(unit) then return end
+			if not (UnitIsPlayer(unit) or (E.Modern and UnitInPartyIsAI(unit))) then return end
+
+			local info = E.Retail and E:GetUnitSpecInfo(unit)
+			if not info then return end
+
+			local size = strsplit(":", args or "")
+			size = tonumber(size)
+			size = (size and (size >= 16 and size <= 128)) and size or 64
+
+			local specIconStrings = MEDIA.icons.spec.icons.custom[style] and MEDIA.icons.spec.icons.custom[style].texString[info.id] or MEDIA.icons.spec.data[info.id].texString
+			local textureFile = MEDIA.icons.spec.icons.custom[style] and MEDIA.icons.spec.icons.custom[style].texture or MEDIA.icons.spec.icons.mmt[style].texture
+			if textureFile and specIconStrings then return format("|T%s:%s:%s:0:0:1024:1024:%s|t", textureFile, size, size, specIconStrings) end
+		end)
+		E:AddTagInfo(tag, mMT.NameShort .. " " .. L["Icons"], L["Returns the spec icon of the unit. You can specify a size between 16 and 128 (default is 64). Example: mSpecIcon:style{32}"])
+	end
+end
+function module:Initialize()
+	db = E.db.mMediaTag.tags
+
+	mMT:UpdateMedia("tags")
+	noDecData = nil
+	GetNoDecData()
+	RebuildRoleTables()
+	RebuildClassificationIcons()
+	RebuildStatusIcons()
+	RebuildMiscIconStrings()
+
+	if not module.initialized then
+		module:RegisterEvent("PLAYER_ENTERING_WORLD")
+		module:RegisterEvent("UPDATE_INSTANCE_INFO")
+		module.initialized = true
+	end
+end
+
+function module:PLAYER_ENTERING_WORLD()
+	db = E.db.mMediaTag.tags
+	RebuildRoleTables()
+end
+
+function module:UPDATE_INSTANCE_INFO()
+	UpdateInstanceState()
+end

@@ -1,0 +1,61 @@
+local E, L, V, P, G = unpack(ElvUI)
+local DT = E:GetModule('DataTexts')
+
+local time, max, strjoin = time, max, strjoin
+
+local CombatLogGetCurrentEventInfo = C_CombatLog.GetCurrentEventInfo or CombatLogGetCurrentEventInfo
+local UnitGUID = UnitGUID
+
+local lastSegment, petGUID = 0
+local timeStamp, combatTime, healTotal = 0, 0, 0
+local displayString = ''
+local subEvents = {
+	SPELL_HEAL = true,
+	SPELL_PERIODIC_HEAL = true
+}
+
+local function Reset()
+	timeStamp, combatTime, healTotal = 0, 0, 0
+end
+
+local function GetHPS(panel)
+	local HPS = (healTotal == 0 or combatTime == 0) and 0 or (healTotal / combatTime)
+	panel.text:SetFormattedText(displayString, L["HPS"], E:ShortValue(HPS))
+end
+
+local function OnEvent(panel, event)
+	if event == 'UNIT_PET' then
+		petGUID = UnitGUID('pet')
+	elseif event == 'PLAYER_REGEN_DISABLED' or event == 'PLAYER_LEAVE_COMBAT' then
+		local now = time()
+		if now - lastSegment > 20 then
+			Reset()
+		end
+		lastSegment = now
+	elseif event == 'COMBAT_LOG_EVENT_UNFILTERED' then
+		local timestamp, subEvent, _, sourceGUID, _, _, _, _, _, _, _, _, _, _, lastHealAmount, overHeal = CombatLogGetCurrentEventInfo()
+		if not subEvents[subEvent] or (sourceGUID ~= E.myguid and sourceGUID ~= petGUID) then return end
+
+		if timeStamp == 0 then
+			timeStamp = timestamp
+		end
+
+		lastSegment = timestamp
+		combatTime = timestamp - timeStamp
+
+		healTotal = healTotal + max(0, lastHealAmount - overHeal)
+	end
+
+	GetHPS(panel)
+end
+
+local function OnClick(panel)
+	Reset()
+	GetHPS(panel)
+end
+
+local function ApplySettings(_, hex)
+	displayString = strjoin('', '%s: ', hex, '%s')
+end
+
+DT:RegisterDatatext('HPS', nil, { 'UNIT_PET', not E.Modern and 'COMBAT_LOG_EVENT_UNFILTERED' or nil, 'PLAYER_LEAVE_COMBAT', 'PLAYER_REGEN_DISABLED' }, OnEvent, nil, OnClick, nil, nil, L["HPS"], nil, ApplySettings)

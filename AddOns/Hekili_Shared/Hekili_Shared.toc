@@ -1,0 +1,24 @@
+## Interface: 16001
+## Version: v0.6.1
+## Title: Hekili Forever - Shared
+## Author: defzach
+## IconTexture: Interface\AddOns\Hekili\Textures\HekiliForever
+## Notes: Hekili Forever's content every class shares: shared auras, consumables, items and the race packs. Based on the original work by Hekili.
+## X-Website: https://github.com/zmsl/hekili
+## Dependencies: Hekili
+## Group: Hekili
+## LoadOnDemand: 1
+## X-Hekili-ContentAPI: 11
+
+Shared\Auras.lua
+Shared\Consumables.lua
+Shared\Items.lua
+Races\Gnome.lua
+Races\NightElf.lua
+Races\Tauren.lua
+Races\Human.lua
+Races\Dwarf.lua
+Races\Orc.lua
+Races\Troll.lua
+Races\Undead.lua
+Races\HighOrderSkyborne.lua

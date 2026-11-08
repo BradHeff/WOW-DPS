@@ -1,0 +1,69 @@
+local E = unpack(ElvUI)
+local _G = _G
+local tinsert = _G.table.insert
+local IsAddOnLoaded = _G.C_AddOns and _G.C_AddOns.IsAddOnLoaded
+
+-- Questie profile setup
+function ElvUI_EltreumUI:GetQuestieProfile()
+	if not E.Retail then
+		if IsAddOnLoaded("Questie") then
+			local QuestieConfig = _G.QuestieConfig
+			if QuestieConfig.profiles.Eltreum then
+				tinsert(QuestieConfig.profileKeys, E.mynameRealm)
+				QuestieConfig["profileKeys"][E.mynameRealm] = "Eltreum"
+			else
+				QuestieConfig["profiles"]["Eltreum"] = {}
+				QuestieConfig["profiles"]["Eltreum"] = {
+					["trackerFontOutline"] = ElvUI_EltreumUI:FontFlag(E.db.general.fontStyle),
+
+					["trackerFontHeader"] = E.db.general.font,
+					["trackerFontObjective"] = E.db.general.font,
+					["trackerFontZone"] = E.db.general.font,
+					["trackerFontQuest"] = E.db.general.font,
+
+					["trackerFontSizeHeader"] = 14,
+					["trackerFontSizeZone"] = 13,
+					["trackerFontSizeQuest"] = 12,
+					["trackerFontSizeObjective"] = 12,
+
+					["nameplateTargetFrameX"] = -252,
+					["nameplateTargetFrameY"] = 17,
+
+					["questMinimapObjectiveColors"] = true,
+
+					["nameplateX"] = 146,
+					["nameplateY"] = 0,
+					["nameplateTargetFrameEnabled"] = E.Forever and false or true,
+
+					["alwaysGlowMinimap"] = true,
+					["questObjectiveColors"] = true,
+					["collapseCompletedQuests"] = true,
+					["nameplateTargetFrameScale"] = 1,
+					["trackerSortObjectives"] = "byProximity",
+					["soundOnQuestComplete"] = true,
+
+					["trackerEnabled"] = false,
+					["onlyPartyShared"] = true,
+					["hideTrackerInCombat"] = false,
+					["mapShowHideEnabled"] = false,
+					["mapCoordinatesEnabled"] = false,
+					["disableYellComms"] = true,
+					["globalTrackerLocation"] = false,
+					["currentBorderEnabled"] = true,
+					["currentBackdropFader"] = true,
+					["trackerbindOpenQuestLog"] = "right",
+					["trackerColorObjectives"] = "whiteAndGreen",
+
+					--new since forever
+					["enableTooltipsBreadcrumbQuests"] = true,
+					--["migrationVersion"] = 40,
+					--["nameplateEnabled"] = false,
+					["questieShutUp"] = true,
+					--["tutorialRejectInBattlegroundsDone"] = false,
+					--["tutorialShowRunesDone"] = false,
+				}
+				QuestieConfig["profileKeys"][E.mynameRealm] = "Eltreum"
+			end
+		end
+	end
+end

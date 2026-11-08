@@ -1,0 +1,709 @@
+local mMT, DB, M, E, P, L, MEDIA = unpack(ElvUI_mMediaTag)
+local DT = E:GetModule("DataTexts")
+local UF = E:GetModule("UnitFrames")
+
+-- Cache WoW Globals
+local format = format
+local ipairs = ipairs
+local gsub = gsub
+local print = print
+local strmatch = strmatch
+local time = time
+local tonumber = tonumber
+local floor = floor
+local tinsert = tinsert
+local tremove = tremove
+local IsInGroup = IsInGroup
+local IsInRaid = IsInRaid
+local GetDungeonDifficultyID = GetDungeonDifficultyID
+local GetRaidDifficultyID = GetRaidDifficultyID
+local GetApplicationMetric = C_AddOnProfiler.GetApplicationMetric
+local GetOverallMetric = C_AddOnProfiler.GetOverallMetric
+local GetAddOnMetric = C_AddOnProfiler.GetAddOnMetric
+local GetProfessionInfo = GetProfessionInfo
+local GetProfessionInfoBySkillLineID = C_TradeSkillUI and C_TradeSkillUI.GetProfessionInfoBySkillLineID
+local UnitGUID = UnitGUID
+local UnitClassification = UnitClassification
+local UnitLevel = UnitLevel
+local UnitExists = UnitExists
+local UnitIsUnit = UnitIsUnit
+local UnitIsPlayer = UnitIsPlayer
+local strsplit = strsplit
+local select = select
+local pcall = pcall
+local type = type
+local issecretvalue = issecretvalue
+local SerializeCBOR = C_EncodingUtil.SerializeCBOR
+local DeserializeCBOR = C_EncodingUtil.DeserializeCBOR
+local CompressString = C_EncodingUtil.CompressString
+local DecompressString = C_EncodingUtil.DecompressString
+local EncodeBase64 = C_EncodingUtil.EncodeBase64
+local DecodeBase64 = C_EncodingUtil.DecodeBase64
+
+local COMPRESS = Enum.CompressionMethod.Deflate or 0
+local OPTIMIZE = Enum.CompressionLevel.Default or 0
+
+local D = E:GetModule("Distributor")
+
+function mMT:Print(...)
+	print(MEDIA.icon16 .. " " .. mMT.Name .. ":", ...)
+end
+
+function mMT:AddSettingsIcon(text, icon)
+	return format("|TInterface\\Addons\\ElvUI_mMediaTag\\media\\options\\%s.tga:16:16|t  %s", icon, text)
+end
+
+local DB_VERSION = 3
+local DB_STEPS = {
+	function(db) -- 1: font subtable renamed to text, font is a plain string in every other UI
+		for _, key in ipairs({ "death_counter", "difficulty_info", "dock", "lfg_invite_info", "objective_tracker", "prey_hunt" }) do
+			local settings = db[key]
+			if settings then
+				if type(settings.font) == "table" then E:CopyTable(settings.text, settings.font) end
+				settings.font = nil
+			end
+		end
+	end,
+	function(db) -- 2: portraits spec_icon was a boolean before it became a style key
+		local misc = db.portraits and db.portraits.misc
+		if misc and type(misc.spec_icon) == "boolean" then misc.spec_icon = "none" end
+	end,
+	function(db) -- 3: the cast glow moved from interrupt_on_cd to important_casts, it always required an interruptible cast
+		local old, new = db.interrupt_on_cd, db.important_casts
+		if old and new then
+			for _, key in ipairs({ "glow_castbar", "glow_health", "glow_ready_only", "glow_thickness" }) do
+				if old[key] ~= nil then new[key] = old[key] end
+				old[key] = nil
+			end
+			old.glow_important_only = nil
+		end
+
+		local colors = db.color
+		if colors and colors.interrupt_on_cd and colors.important_casts then
+			if colors.interrupt_on_cd.glow then colors.important_casts.glow = colors.interrupt_on_cd.glow end
+			colors.interrupt_on_cd.glow = nil
+		end
+	end,
+}
+
+function mMT:MigrateProfile()
+	local version = E.db.mMediaTag.db_version or 0
+	if version >= DB_VERSION then return end
+
+	for step = version + 1, DB_VERSION do
+		if DB_STEPS[step] then DB_STEPS[step](E.db.mMediaTag) end
+	end
+
+	E.db.mMediaTag.db_version = DB_VERSION
+end
+
+function mMT:UpdateModule(name, arg)
+	local module = M[name]
+	if module and module.Initialize then module:Initialize(arg) end
+end
+
+function mMT:GetModule(name)
+	return M[name]
+end
+
+function mMT:AddModule(name, arg)
+	if arg then
+		M[name] = mMT:NewModule(name, unpack(arg))
+	else
+		M[name] = {}
+	end
+	return M[name]
+end
+
+function mMT:TC(text, color)
+	color = color or "text"
+	return MEDIA.color[color]:WrapTextInColorCode(text)
+end
+
+-- startTime/duration are secret since 12.1, isActive is not - it is the only readable cooldown state.
+-- LuaDurationObject:HasExpired() is no alternative here, its return is secret as well.
+function mMT:CooldownStateText(isActive)
+	if isActive == nil or issecretvalue(isActive) then return "" end
+	return mMT:TC(isActive and L["Not Ready"] or L["Ready"], isActive and "red" or "green")
+end
+
+-- classic has no GetProfessionInfoBySkillLineID, the base skill lines are the same in every version
+local PROFESSION_BY_SKILL_LINE = {
+	[164] = "Blacksmithing",
+	[165] = "Leatherworking",
+	[171] = "Alchemy",
+	[182] = "Herbalism",
+	[185] = "Cooking",
+	[186] = "Mining",
+	[197] = "Tailoring",
+	[202] = "Engineering",
+	[333] = "Enchanting",
+	[356] = "Fishing",
+	[393] = "Skinning",
+	[755] = "Jewelcrafting",
+	[773] = "Inscription",
+	[794] = "Archaeology",
+}
+
+function mMT:GetProfessionIcon(profession, style)
+	if not profession then return end
+
+	local icons = MEDIA.icons.datatexts.profession_icons[style or "white"]
+	local skillLine = select(7, GetProfessionInfo(profession))
+	if not skillLine then return end
+
+	local info = GetProfessionInfoBySkillLineID and GetProfessionInfoBySkillLineID(skillLine)
+	local id = (info and info.profession) or (Enum.Profession and Enum.Profession[PROFESSION_BY_SKILL_LINE[skillLine]])
+	return id and icons[id] or nil
+end
+
+function mMT:GetRGB(color1, color2)
+	local c1 = MEDIA.color[color1 or "text"]
+
+	if color2 then
+		local c2 = MEDIA.color[color2]
+		return c1.r, c1.g, c1.b, c2.r, c2.g, c2.b
+	end
+
+	return c1.r, c1.g, c1.b
+end
+
+function mMT:HexToRGB(hex)
+	if #hex == 6 then hex = "ff" .. hex end
+
+	local a, r, g, b = tonumber(hex:sub(1, 2), 16), tonumber(hex:sub(3, 4), 16), tonumber(hex:sub(5, 6), 16), tonumber(hex:sub(7, 8), 16)
+
+	return r / 255, g / 255, b / 255, a / 255
+end
+
+function mMT:FloatToHex(value)
+	local scaled = math.max(0, math.min(255, math.floor(value * 255 + 0.5)))
+	return string.format("%02X", scaled)
+end
+
+function mMT:round(number, decimals)
+	if type(number) ~= "number" then
+		mMT:Print(L["!! ERROR - Round:"], tostring(number), "-", tostring(decimals))
+		return 0
+	end
+
+	local mult = 10 ^ (type(decimals) == "number" and decimals or 0)
+	return floor(number * mult + 0.5) / mult
+end
+
+function mMT:GetElvUIDataText(name)
+	local dt = DT.RegisteredDataTexts[name]
+
+	if dt and dt.category ~= "Data Broker" then return dt end
+end
+
+-- text and value hex of a datatext, the mMT override colors win over ElvUI's value color
+function mMT:GetDTColorHex(hex)
+	local db = E.db.mMediaTag.datatexts.text
+	return db.override_text and "|c" .. MEDIA.color.override_text.hex or hex, db.override_value and "|c" .. MEDIA.color.override_value.hex or hex
+end
+
+function mMT:ConnectVirtualFrameToDataText(dataTextName, virtualFrame)
+	local dt = self:GetElvUIDataText(dataTextName)
+	if not dt or type(dt.applySettings) ~= "function" then return false end
+	dt.applySettings(virtualFrame, E.media.hexvaluecolor)
+	return true
+end
+
+-- UF:Initialize runs before mMT in E:InitializeModules, so its first Configure pass is already done - hooking modules need one sweep over the existing frames.
+local function ForEachHeaderFrame(header, callback)
+	if not header then return end
+
+	for i = 1, header:GetNumChildren() do
+		local child = select(i, header:GetChildren())
+		if child then
+			if child.unitframeType then callback(child) end
+
+			-- second level: group headers (raid1-3) and the party's target/pet frames
+			for j = 1, child:GetNumChildren() do
+				local frame = select(j, child:GetChildren())
+				if frame and frame.unitframeType then callback(frame) end
+			end
+		end
+	end
+end
+
+function mMT:ForEachUFFrame(callback)
+	if not (callback and E.private.unitframe.enable) then return end
+
+	-- UF.units holds frames as values, UF.groupunits only unit -> group name (the frame is in UF[unit]).
+	if UF.units then
+		for _, frame in pairs(UF.units) do
+			if frame then callback(frame) end
+		end
+	end
+
+	if UF.groupunits then
+		for unit in pairs(UF.groupunits) do
+			local frame = UF[unit]
+			if frame then callback(frame) end
+		end
+	end
+
+	if UF.headers then
+		for _, header in pairs(UF.headers) do
+			ForEachHeaderFrame(header, callback)
+		end
+	end
+end
+
+-- each options frame is hooked once per func, AceGUI can hand out a new frame on every open
+local configCloseHooks = {}
+function mMT:HookConfigClose(func)
+	local ACD = E.Libs.AceConfigDialog
+	local config = ACD and ACD.OpenFrames and ACD.OpenFrames.ElvUI
+	if not (config and config.frame) then return end
+
+	local hooked = configCloseHooks[func]
+	if not hooked then
+		hooked = {}
+		configCloseHooks[func] = hooked
+	end
+
+	if hooked[config.frame] then return end
+	hooked[config.frame] = true
+	config.frame:HookScript("OnHide", func)
+end
+
+function mMT:formatText(input, ignoreSkip)
+	local ignore = { filled = true }
+	local words = {}
+
+	for word in string.gmatch(input, "[^_]+") do
+		table.insert(words, word)
+	end
+
+	if not ignoreSkip and ignore[words[#words]] then table.remove(words) end
+
+	for i, w in ipairs(words) do
+		words[i] = w:sub(1, 1):upper() .. w:sub(2):lower()
+	end
+
+	return table.concat(words, " ")
+end
+
+-- keys instead of colors, UpdateMedia replaces the color objects
+local difficultyColorKeys = {
+	-- Dungeon difficulties
+	[1] = "N", -- Normal
+	[2] = "H", -- Heroic
+	[23] = "M", -- Mythic
+
+	-- Raid difficulties
+	[14] = "N", -- Normal
+	[15] = "H", -- Heroic
+	[16] = "M", -- Mythic
+}
+
+function mMT:GetInstanceDifficulty()
+	local isRaid = IsInRaid()
+	local id = isRaid and GetRaidDifficultyID() or (IsInGroup() and GetDungeonDifficultyID())
+	if not id or id == 0 then return end -- 0 means the player never set that difficulty
+
+	local difficultyName = GetDifficultyInfo(id)
+	if not difficultyName then return end
+
+	local color = MEDIA.color[difficultyColorKeys[id] or "OTHER"]
+	local shortName = E:ShortenString(difficultyName, 1)
+	return color:WrapTextInColorCode(shortName), isRaid
+end
+
+function mMT:GetWeeklyResetTime()
+	local secondsUntilReset = C_DateAndTime.GetSecondsUntilWeeklyReset()
+	if not secondsUntilReset then return false end
+	local lastReset = time() + secondsUntilReset - 604800
+
+	if lastReset > (DB.lastWeeklyReset or 0) + 60 then
+		DB.lastWeeklyReset = lastReset
+		return true
+	end
+	return false
+end
+
+function mMT:BuildMenus()
+	mMT.menu = CreateFrame("Frame", "mMediaTag_Main_Menu_Frame", E.UIParent, "BackdropTemplate")
+	mMT.menu:SetTemplate("Transparent", true)
+
+	mMT.submenu = CreateFrame("Frame", "mMediaTag_Submenu_Frame", E.UIParent, "BackdropTemplate")
+	mMT.submenu:SetTemplate("Transparent", true)
+end
+
+-- Traveler's Tundra Mammoth (Alliance, Horde), Grand Expedition Yak, Mighty Caravan Brutosaur, Grizzly Hills Packmaster, Sporebearer Fungal Strider
+mMT.RepairMounts = { 280, 284, 460, 1039, 2237, 3137 }
+
+local GetMountInfoByID = C_MountJournal.GetMountInfoByID
+local SummonByID = C_MountJournal.SummonByID
+
+function mMT:MenuSpacer()
+	return { text = "", isTitle = true, notClickable = true }
+end
+
+function mMT:MenuTitle(text)
+	return { text = mMT:TC(text, "title"), isTitle = true, notClickable = true }
+end
+
+function mMT:ShowMenu(menu, parent)
+	if not mMT.menu then mMT:BuildMenus() end
+	mMT:DropDown(menu, mMT.menu, parent, 260, 2)
+end
+
+-- other faction mounts stay collected, but cannot be used on this character
+function mMT:GetCollectedMounts(mountIDs)
+	local collected = {}
+	for _, mountID in ipairs(mountIDs) do
+		local _, _, _, _, _, _, _, _, _, hideOnChar, isCollected = GetMountInfoByID(mountID)
+		if isCollected and not hideOnChar then tinsert(collected, mountID) end
+	end
+	return collected
+end
+
+local function OnEnterMountEntry(btn)
+	GameTooltip:SetOwner(btn, "ANCHOR_CURSOR")
+	GameTooltip:ClearLines()
+	GameTooltip:SetMountBySpellID(btn.tooltip)
+	GameTooltip:Show()
+end
+
+local function OnLeaveMenuEntry()
+	GameTooltip:Hide()
+end
+
+function mMT:CreateMountMenuEntry(mountID)
+	local name, spellID, icon = GetMountInfoByID(mountID)
+	if not name then return end
+
+	return {
+		text = name,
+		icon = icon,
+		icon_size = 14,
+		tooltip = spellID,
+		func = function()
+			SummonByID(mountID)
+		end,
+		funcOnEnter = OnEnterMountEntry,
+		funcOnLeave = OnLeaveMenuEntry,
+	}
+end
+
+-- a random usable mount on top, then every collected one
+function mMT:OpenMountMenu(parent, mountIDs)
+	if E:AlertCombat() then return end
+
+	local mounts = mMT:GetCollectedMounts(mountIDs)
+	if not mounts[1] then return end
+
+	local usable = {}
+	for _, mountID in ipairs(mounts) do
+		if select(5, GetMountInfoByID(mountID)) then tinsert(usable, mountID) end
+	end
+
+	local menu = {}
+	local pool = usable[1] and usable or mounts
+	local randomEntry = mMT:CreateMountMenuEntry(pool[random(#pool)])
+	if randomEntry then
+		tinsert(menu, mMT:MenuTitle(L["Random"]))
+		tinsert(menu, randomEntry)
+		tinsert(menu, mMT:MenuSpacer())
+	end
+
+	tinsert(menu, mMT:MenuTitle(L["Mounts"]))
+	for _, mountID in ipairs(mounts) do
+		local entry = mMT:CreateMountMenuEntry(mountID)
+		if entry then tinsert(menu, entry) end
+	end
+
+	mMT:ShowMenu(menu, parent)
+end
+
+local function ToggleGreatVault()
+	if not _G.WeeklyRewardsFrame then E:LoadAddon("Blizzard_WeeklyRewards") end
+	if _G.WeeklyRewardsFrame:IsVisible() then
+		_G.WeeklyRewardsFrame:Hide()
+	else
+		_G.WeeklyRewardsFrame:Show()
+	end
+end
+
+local function GroupFinderEntry(text, panel, selection)
+	return {
+		text = text,
+		func = function()
+			_G.PVEFrame_ToggleFrame(panel, selection and _G[selection])
+		end,
+	}
+end
+
+function mMT:ToggleGroupFinder()
+	if E.Retail then
+		_G.ToggleLFDParentFrame()
+	elseif E.Forever then
+		_G.ToggleGroupFinderFrame()
+	elseif E.Mists then
+		_G.PVEFrame_ToggleFrame()
+	else
+		_G.ToggleLFGParentFrame()
+	end
+end
+
+-- cata and mists show professions on a spellbook tab, vanilla and tbc list them on the general tab
+function mMT:ToggleProfessionBook()
+	if E.Retail or E.Forever then
+		_G.ToggleProfessionsBook()
+	elseif E.Mists or E.Cata then
+		_G.ToggleSpellBook(_G.BOOKTYPE_PROFESSION)
+	else
+		_G.ToggleSpellBook(_G.BOOKTYPE_SPELL)
+	end
+end
+
+-- vanilla and tbc load the calendar on demand, their minimap clock has no calendar button
+function mMT:ToggleCalendar()
+	if E.TBC or E.Classic then
+		if not _G.Calendar_Toggle then E:LoadAddon("Blizzard_Calendar") end
+		if _G.Calendar_Toggle then _G.Calendar_Toggle() end
+	else
+		_G.GameTimeFrame:Click()
+	end
+end
+
+-- the panels in this menu only exist on retail
+function mMT:OpenGroupFinderMenu(parent)
+	if E:AlertCombat() then return end
+	if not E.Retail then return mMT:ToggleGroupFinder() end
+
+	mMT:ShowMenu({
+		mMT:MenuTitle(_G.GROUP_FINDER),
+		GroupFinderEntry(_G.LOOKING_FOR_DUNGEON, "GroupFinderFrame", "LFDParentFrame"),
+		GroupFinderEntry(_G.RAID_FINDER, "GroupFinderFrame", "RaidFinderFrame"),
+		GroupFinderEntry(_G.LFGLIST_NAME, "GroupFinderFrame", "LFGListPVEStub"),
+		GroupFinderEntry(_G.CHALLENGES, "ChallengesFrame"),
+		GroupFinderEntry(_G.PVP, "PVPUIFrame"),
+		mMT:MenuSpacer(),
+		{ text = _G.DELVES_GREAT_VAULT_LABEL, func = ToggleGreatVault },
+	}, parent)
+end
+
+local topAddOns = {}
+for i = 1, 5 do
+	topAddOns[i] = { value = 0, name = "", cpu = "N/A" }
+end
+
+local function GetMemoryString(mem)
+	return mem > 1024 and format("%.2f MB", mem / 1024) or format("%.0f KB", mem)
+end
+
+local function FormatProfilerPercent(pct)
+	if pct >= 1 then
+		return format("CPU: %.0f%%", pct)
+	elseif pct >= 0.1 then
+		return format("CPU: %.1f%%", pct)
+	elseif pct >= 0.01 then
+		return format("CPU: %.2f%%", pct)
+	else
+		return "CPU: 0%"
+	end
+end
+
+local function GetAddonMetricPercent(addonName, metric)
+	local appVal = GetApplicationMetric(metric)
+	local overallVal = GetOverallMetric(metric)
+	local addonVal = GetAddOnMetric(addonName, metric)
+	local relativeTotal = appVal - overallVal + addonVal
+
+	if relativeTotal <= 0 then return "N/A" end
+	return FormatProfilerPercent((addonVal / relativeTotal) * 100)
+end
+
+function mMT:SystemInfo()
+	local isProfilerEnabled = C_AddOnProfiler.IsEnabled()
+
+	for _, addon in ipairs(topAddOns) do
+		addon.value = 0
+	end
+
+	UpdateAddOnMemoryUsage()
+	local totalMem, addonCount = 0, C_AddOns.GetNumAddOns()
+
+	for i = 1, addonCount do
+		local mem = GetAddOnMemoryUsage(i)
+		totalMem = totalMem + mem
+
+		for j = 1, 5 do
+			if mem > topAddOns[j].value then
+				local entry = tremove(topAddOns)
+				entry.value, entry.index = mem, i
+				tinsert(topAddOns, j, entry)
+				break
+			end
+		end
+	end
+
+	for _, addon in ipairs(topAddOns) do
+		if addon.value > 0 then
+			addon.name = C_AddOns.GetAddOnInfo(addon.index)
+			addon.cpu = isProfilerEnabled and GetAddonMetricPercent(addon.name, Enum.AddOnProfilerMetric.RecentAverageTime) or "N/A"
+		end
+	end
+
+	if totalMem > 0 then
+		DT.tooltip:AddDoubleLine(L["AddOn Memory:"], GetMemoryString(totalMem), mMT:GetRGB("text", "text"))
+
+		if isProfilerEnabled then
+			local function AddCPUStatistic(label, metric)
+				local overall = GetOverallMetric(metric)
+				local appOverall = GetApplicationMetric(metric)
+				if appOverall > 0 then DT.tooltip:AddDoubleLine(L[label], format("%.2f%%", (overall / appOverall) * 100), mMT:GetRGB("text", "text")) end
+			end
+
+			AddCPUStatistic("CPU overall:", Enum.AddOnProfilerMetric.SessionAverageTime)
+			AddCPUStatistic("CPU peak:", Enum.AddOnProfilerMetric.PeakTime)
+		end
+
+		DT.tooltip:AddLine(" ")
+		for _, addon in ipairs(topAddOns) do
+			if addon.value > 0 then DT.tooltip:AddDoubleLine(addon.name, addon.cpu .. " - " .. GetMemoryString(addon.value), mMT:GetRGB("text", "text")) end
+		end
+	end
+end
+
+function mMT:MMTSystemInfo()
+	local isProfilerEnabled = C_AddOnProfiler.IsEnabled()
+	if isProfilerEnabled then
+		local memoryUsage = GetMemoryString(GetAddOnMemoryUsage("ElvUI_mMediaTag"))
+		local cpuUsage = GetAddonMetricPercent("ElvUI_mMediaTag", Enum.AddOnProfilerMetric.RecentAverageTime)
+		DT.tooltip:AddDoubleLine(L["Memory/ CPU usage:"], cpuUsage .. " - " .. memoryUsage, mMT:GetRGB("text", "text"))
+	end
+end
+
+local exportPrefix = "!mMT2!"
+local legacyPrefix = "!mMT!" -- LibDeflate/AceSerializer era, no longer decodable
+
+local function GetImportStringType(dataString)
+	return (strmatch(dataString, "^" .. exportPrefix) and "Deflate") or (strmatch(dataString, "^" .. legacyPrefix) and "Legacy") or ""
+end
+
+-- nil for secret values (WoW 12.x) - those must never be compared, concatenated or branched on.
+function mMT.SafeValue(value)
+	if issecretvalue(value) then return nil end
+	return value
+end
+local SafeValue = mMT.SafeValue
+
+-- nil for player GUIDs, missing GUIDs or the secret placeholder (" ").
+local function GetNpcID(guid)
+	if not guid or guid == " " then return nil end
+	return select(6, strsplit("-", guid))
+end
+
+local MAX_BOSS_UNITS = 8
+local bossTokens = {}
+for i = 1, MAX_BOSS_UNITS do
+	bossTokens[i] = "boss" .. i
+end
+
+-- Secret-safe check whether a unit matches one of the boss1-boss8 unit tokens.
+local function IsBossTokenUnit(unit)
+	for i = 1, MAX_BOSS_UNITS do
+		local token = bossTokens[i]
+		if SafeValue(UnitExists(token)) and SafeValue(UnitIsUnit(unit, token)) then return true end
+	end
+	return false
+end
+
+local extraTypes = { rare = true, elite = true, rareelite = true, boss = true }
+
+-- secret-safe; isBossFrame/isPlayer/guid are optional, a secret GUID arrives as " ".
+function mMT:GetUnitClassification(unit, isBossFrame, isPlayer, guid)
+	if not unit then return nil end
+
+	if isPlayer == nil then isPlayer = SafeValue(UnitIsPlayer(unit)) and true or false end
+	if guid == nil then guid = SafeValue(UnitGUID(unit)) or " " end
+
+	local npcID = GetNpcID(guid)
+	local classification = SafeValue(UnitClassification(unit))
+	if classification == "worldboss" then classification = "boss" end
+
+	if npcID and ((mMT.IDs.boss and mMT.IDs.boss[npcID]) or (DB.boss_ids and DB.boss_ids[npcID])) then return "boss" end
+
+	if isBossFrame or classification == "boss" or (not isPlayer and IsBossTokenUnit(unit)) then
+		-- learn the npcID for reliable pre-pull detection in future sessions
+		if npcID and DB.boss_ids then DB.boss_ids[npcID] = true end
+		return "boss"
+	end
+
+	-- level -1 is also any mob far above the player, so it is shown as boss but never learned
+	if not isPlayer and SafeValue(UnitLevel(unit)) == -1 then return "boss" end
+
+	return extraTypes[classification] and classification or nil
+end
+
+function mMT:GetExportText(profileData, profileType)
+	local serialString = SerializeCBOR(profileData)
+	local exportString = D:CreateProfileExport(profileType, profileType, serialString)
+	local compressedData = CompressString(exportString, COMPRESS, OPTIMIZE)
+	local printableString = EncodeBase64(compressedData)
+
+	return printableString and format("%s%s", exportPrefix, printableString) or nil
+end
+
+function mMT:GetImportText(string)
+	local profileType, profileData
+	local stringType = GetImportStringType(string)
+
+	if stringType == "Legacy" then
+		mMT:Print(L["This export was created by an older version and can no longer be imported."])
+		return
+	end
+
+	if stringType == "Deflate" then
+		local data = gsub(string, "^" .. exportPrefix, "")
+
+		-- both throw on malformed user input instead of returning nil
+		local ok, decompressed = pcall(function()
+			return DecompressString(DecodeBase64(data), COMPRESS)
+		end)
+		if not ok or not decompressed then
+			mMT:Print(L["Error decompressing data."])
+			return
+		end
+
+		-- match the last "::", CBOR is binary and may contain the delimiter itself
+		local serializedData, profileInfo = strmatch(decompressed, "^(.*)::([^:]*)$")
+		if not profileInfo then
+			mMT:Print(L["Error importing profile. String is invalid or corrupted!"])
+			return
+		end
+
+		local success
+		success, profileData = pcall(DeserializeCBOR, serializedData)
+
+		if not success or type(profileData) ~= "table" then
+			mMT:Print(L["Error deserializing:"], profileData)
+			return
+		end
+
+		profileType = profileInfo
+	else
+		mMT:Print(L["Error importing profile. String is invalid or corrupted!"])
+		return
+	end
+
+	return profileType, profileData
+end
+
+function mMT:GetImportData(string, expectedType)
+	local profileType, profileData = mMT:GetImportText(string)
+	if not profileType then return nil end
+
+	if profileType ~= expectedType then
+		mMT:Print(L["This export belongs to another setting and cannot be imported here."])
+		return nil
+	end
+
+	return profileData
+end

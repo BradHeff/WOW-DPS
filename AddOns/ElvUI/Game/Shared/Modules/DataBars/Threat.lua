@@ -1,0 +1,137 @@
+local E, L, V, P, G = unpack(ElvUI)
+local DB = E:GetModule('DataBars')
+local ElvUF = E.oUF
+
+local next = next
+local wipe = wipe
+
+local UnitAffectingCombat = UnitAffectingCombat
+local UnitDetailedThreatSituation = UnitDetailedThreatSituation
+local UnitIsPlayer = UnitIsPlayer
+local UnitReaction = UnitReaction
+local UnitExists = UnitExists
+local UnitClass = UnitClass
+local UnitName = UnitName
+local UNKNOWN = UNKNOWN
+
+local StatusBarInterpolation = Enum.StatusBarInterpolation
+
+local tankStatus = { [0] = 3, 2, 1, 0 }
+
+function DB:ThreatBar_GetLargestThreatOnList(value)
+	local largestValue, largestUnit = 0, nil
+	for unit, percent in next, DB.StatusBars.Threat.list do
+		if E:NotSecretValue(percent) and (percent > largestValue) then
+			largestValue, largestUnit = percent, unit
+		end
+	end
+
+	return (value - largestValue), largestUnit
+end
+
+function DB:ThreatBar_GetColor(unit)
+	local _, unitClass = UnitClass(unit)
+	local classColor = E:NotSecretValue(unitClass) and unitClass and UnitIsPlayer(unit) and E:ClassColor(unitClass)
+	if classColor then
+		return classColor.r*255, classColor.g*255, classColor.b*255
+	end
+
+	local unitReaction = UnitReaction(unit, 'player')
+	local reaction = unitReaction and ElvUF.colors.reaction[unitReaction]
+	if reaction then
+		return reaction.r*255, reaction.g*255, reaction.b*255
+	end
+
+	return 194, 194, 194
+end
+
+function DB:ThreatBar_Update()
+	local bar = DB.StatusBars.Threat
+	local petExists = UnitExists('pet')
+	bar.showBar = false
+
+	if UnitAffectingCombat('player') and (petExists or E.IsInGroup) then
+		local _, status, percent = UnitDetailedThreatSituation('player', 'target')
+		if E:NotSecretValue(status) and percent then
+			local name, isTank = UnitName('target') or UNKNOWN, E.myrole == 'TANK'
+			bar.showBar = true
+
+			local leadPercent, largestUnit
+			if percent == 100 then
+				if petExists then
+					_, _, bar.list.pet = UnitDetailedThreatSituation('pet', 'target')
+				end
+
+				for unit in next, E.GroupRoles do
+					if E:UnitNotUnit(unit, 'player') then
+						_, _, bar.list[unit] = UnitDetailedThreatSituation(unit, 'target')
+					end
+				end
+
+				leadPercent, largestUnit = DB:ThreatBar_GetLargestThreatOnList(percent)
+			end
+
+			if largestUnit and leadPercent > 0 then
+				local r, g, b = DB:ThreatBar_GetColor(largestUnit)
+				bar.text:SetFormattedText(L["ABOVE_THREAT_FORMAT"], name, percent, leadPercent, r, g, b, UnitName(largestUnit) or UNKNOWN)
+				bar:SetValue(isTank and leadPercent or percent, bar.smoothing)
+			else
+				bar.text:SetFormattedText('%s: %.0f%%', name, percent)
+				bar:SetValue(percent, bar.smoothing)
+			end
+
+			local r, g, b = E:GetThreatStatusColor(isTank and bar.db.tankStatus and tankStatus[status] or status)
+			if r then
+				bar:SetStatusBarColor(r, g, b, 0.8)
+			end
+		end
+	end
+
+	bar.text:SetShown(bar.db.displayText)
+
+	DB:SetVisibility(bar) -- lower visibility because of using showBar variable
+
+	wipe(bar.list)
+end
+
+function DB:ThreatBar_Toggle()
+	local bar = DB.StatusBars.Threat
+	bar.db = DB.db.threat
+
+	if E.Modern then
+		bar.smoothing = (bar.db.smoothbars and StatusBarInterpolation.ExponentialEaseOut) or StatusBarInterpolation.Immediate or nil
+	else
+		E:SetSmoothing(bar, bar.db.smoothbars)
+	end
+
+	if bar.db.enable then
+		E:EnableMover(bar.holder.mover.name)
+
+		bar:RegisterEvent('GROUP_ROSTER_UPDATE')
+		bar:RegisterEvent('PLAYER_TARGET_CHANGED')
+		bar:RegisterUnitEvent('UNIT_THREAT_LIST_UPDATE', 'pet', 'player', 'target')
+		bar:RegisterUnitEvent('UNIT_FLAGS', 'player', 'target')
+		bar:RegisterUnitEvent('UNIT_PET', 'player') -- fires with the owner unit
+
+		DB:ThreatBar_Update()
+	else
+		E:DisableMover(bar.holder.mover.name)
+
+		bar:UnregisterEvent('PLAYER_TARGET_CHANGED')
+		bar:UnregisterEvent('UNIT_THREAT_LIST_UPDATE')
+		bar:UnregisterEvent('GROUP_ROSTER_UPDATE')
+		bar:UnregisterEvent('UNIT_FLAGS')
+		bar:UnregisterEvent('UNIT_PET')
+	end
+end
+
+function DB:ThreatBar()
+	local Threat = DB:CreateBar('ElvUI_ThreatBar', 'Threat', DB.ThreatBar_Update, nil, nil, {'TOPRIGHT', E.UIParent, 'TOPRIGHT', -3, -245})
+	Threat:SetScript('OnEvent', DB.ThreatBar_Update) -- bar.Update set by CreateBar
+	Threat:SetMinMaxValues(0, 100)
+	Threat.list = {}
+
+	E:CreateMover(Threat.holder, 'ThreatBarMover', L["Threat Bar"], nil, nil, nil, nil, nil, 'databars,threat')
+
+	DB:ThreatBar_Toggle()
+end

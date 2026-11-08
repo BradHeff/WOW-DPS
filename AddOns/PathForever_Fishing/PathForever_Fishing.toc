@@ -1,0 +1,11 @@
+## Interface: 16001
+## Title: PathForever Fishing
+## Notes: Fishing companion for PathForever: catches by zone, a tackle box and a lure timer. Turn it off here to remove it.
+## IconTexture: Interface\AddOns\PathForever\Media\icon
+## Author: oheyspun
+## Version: 2.2.2
+## X-License: All Rights Reserved
+## Dependencies: PathForever
+## Group: PathForever
+
+Fishing.lua

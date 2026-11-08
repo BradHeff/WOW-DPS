@@ -1,0 +1,13 @@
+## Interface: 16001
+## Title: PathForever Auction
+## Notes: Auction house companion for PathForever: scans, disenchant deals, price history and selling help beside the auction window. Turn it off here to remove it.
+## IconTexture: Interface\AddOns\PathForever\Media\icon
+## Author: oheyspun
+## Version: 2.2.2
+## X-License: All Rights Reserved
+## Dependencies: PathForever
+## Group: PathForever
+## SavedVariables: PathForeverAuctionDB
+
+AuctionData.lua
+Auction.lua

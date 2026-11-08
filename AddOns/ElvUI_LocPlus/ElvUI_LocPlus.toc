@@ -1,0 +1,14 @@
+﻿## Interface: 120100
+## Author: Benik
+## Version: 3.02
+## Title: |cff1784d1ElvUI|r Location Plus
+## Notes: a plugin for ElvUI 15+, that adds location, coords, 2 Datatexts and a tooltip full of info.
+## RequiredDeps: ElvUI
+## OptionalDeps: LibTourist-3.0
+## DefaultState: Enabled
+## IconTexture: Interface\ICONS\INV_Misc_Map02
+## X-Wago-ID: ZKbeyR61
+
+libs\load_libs.xml
+locales\load_locales.xml
+init.xml

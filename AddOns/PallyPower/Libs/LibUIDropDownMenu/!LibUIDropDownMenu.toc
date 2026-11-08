@@ -1,0 +1,10 @@
+## Interface: 11509, 16001, 20506, 50504, 120100, 120105
+## Title: Lib: UIDropDownMenu
+## Notes: A Replacement for standard UIDropDownMenu
+## Version: v4.29.12.1.0.68875
+## X-Category: Libraries
+## X-Website: https://www.wowace.com/projects/libuidropdownmenu
+## OptionalDeps: LibStub
+
+LibStub\LibStub.lua
+LibUIDropDownMenu\LibUIDropDownMenu.lua

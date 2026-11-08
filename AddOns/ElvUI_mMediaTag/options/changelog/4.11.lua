@@ -1,0 +1,34 @@
+local mMT, DB, M, E, P, L, MEDIA = unpack(ElvUI_mMediaTag)
+
+mMT.Changelog[411] = {
+	DATE = "26.08.2026",
+	FIX = {
+		"[Skins]: The dropdown menu in the Premade Groups Filter window kept its Blizzard border instead of the ElvUI one.",
+		"[Important-Casts]: The health bar of a nameplate was no longer colored on an important cast, and the border and icon could stay invisible after a cast whose spell info was protected.",
+		"[Portraits]: Portraits of units whose identity is hidden in combat were colored wrong, players now use their class color and hostile NPCs in dungeons the enemy color again.",
+		"[Tags]: The mMT-color tags fell back to the classification color on units whose identity is hidden in combat, players now use their class color again.",
+		"[Objective-Tracker]: The check in front of a completed dungeon objective sat directly against its text.",
+		"[NP-Classification]: A classification texture stayed on a nameplate once it was reused for another unit.",
+		"[System]: Nameplates reset to the ElvUI statusbar texture that was loaded at login, a texture or profile change since then was ignored.",
+		"[NP-Classification]: A target, focus or quest highlight that only changes the color wiped the classification texture off the nameplate.",
+	},
+	UPDATE = {
+		"[Skins]: The Class Codex skin was removed, the addon is only available bundled with the Icy Veins app.",
+		"[Skins]: The BigWigs queue timer bar can be given its own texture.",
+		"[Prey-Hunt]: The stage text on the prey icon is hidden once the hunt is complete, and can optionally show Ready in green instead.",
+		"[Objective-Tracker]: The objective text can be aligned to the left, centered or to the right, and the dash in front of each objective can be hidden, together with the dot in front of open dungeon objectives.",
+		"[NP-Classification]: The classification textures can be limited to dungeons, raids and other instances.",
+		"[Unitframe-Textures]: The incoming heal, absorb shield and heal absorb textures can be applied to nameplates as well.",
+		"[Portraits]: The portrait textures can be given a filter mode, trilinear also samples mipmaps and nearest turns smoothing off.",
+		"[DT-Professions]: The individual profession datatexts can show the icon of the profession itself as their icon style.",
+		"[DT-Professions]: The profession icons come in a colored set as well, selectable next to the white one in the individual profession datatexts.",
+		"[DT-Professions]: The Professions datatext can show the icon of each profession in its menu and its tooltip, in white or colored, with its own switch for the tooltip icons.",
+		"[DT-Professions]: The icons in the profession datatexts are larger.",
+		"[DT-Teleports]: The icons in the Teleports datatext are larger.",
+		"[DT-Tracker]: The icons in the tracker datatexts can be cropped so their default border is cut off.",
+	},
+	NEW = {
+		"[Skins]: AussyLoot now matches ElvUI, its surfaces, borders and fonts follow your ElvUI settings and the accent color can be the AussyLoot one, the ElvUI value color, your class color or a custom one.",
+		"[Portraits]: The portrait border can fill like a ring, showing either the health or the cast of the unit, set up separately for player, target, target of target, focus, pet, party, boss and arena.",
+	},
+}
