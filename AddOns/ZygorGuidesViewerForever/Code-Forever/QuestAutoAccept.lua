@@ -1,0 +1,1 @@
+-- all flavours use C_Gossip now, no overrides needed

@@ -784,7 +784,7 @@ step
     .goto 1411/1,-4715.200,140.100
     >>|cRXP_WARN_Tapez /assis près du feu de camp et attendez une minute jusqu'à ce que vous obteniez le buff "Avantages du camp"|r
     .complete 96607,1 --|1/1 Use the /sit emote near the campfire
-    .macro Sit,134400 >>Asseyez-vous 
+    .macro Sit,134400 >>Asseyez-vous
     .timer 59, RP
     .complete 96607,2 --|Gain the Boosted Rest buff
 step
@@ -2878,6 +2878,28 @@ step << !Paladin
     >>|Tinterface/worldmap/chatbubble_64grey.blp:20|tParlez à la |cRXP_FRIENDLY_Nécrogarde Linnea|r
     .turnin 356 >>Rendez la quête Patrouille d'arrière-garde
     .target Deathguard Linnea
+step
+    .goto 1420/0,73.800,2022.300
+    >>|Tinterface/worldmap/chatbubble_64grey.blp:20|tParlez à |cRXP_FRIENDLY_Deathguard Linnea::1495|r
+    >>|cRXP_WARN_Ceci est une quête préalable pour "The Courroux of Rath'mael"|r
+    .turnin 356 >>Rendez la quête Patrouille d'arrière-garde
+    .target Deathguard Linnea::1495
+    .accept 99156 >>Acceptez la quête Patrouille d'arrière-garde
+    .dungeon ROL
+step
+    .goto 1420/0,-765.200,2518.700
+    >>Tuez |cRXP_ENEMY_Riptear|r |cRXP_WARN_(level 13 elite)|r. Ramassez le |T134339:0|t[|cRXP_LOOT_Riptear's Cœur|r]
+    >>|cRXP_WARN_Ceci est une quête préalable pour "The Courroux of Rath'mael"|r
+    .complete 99156,1 --|1/1 Riptear's Heart
+    .mob Riptear
+    .dungeon ROL
+step
+    .goto 1420/0,74.200,2022.400
+    >>|Tinterface/worldmap/chatbubble_64grey.blp:20|tParlez à |cRXP_FRIENDLY_Deathguard Linnea::1495|r
+    >>|cRXP_WARN_Ceci est une quête préalable pour "The Courroux of Rath'mael"|r
+    .turnin 99156 >>Rendez la quête Patrouille d'arrière-garde
+    .target Deathguard Linnea::1495
+    .dungeon ROL
 step << !Paladin
     #label EnterUC2
     #completewith Glix

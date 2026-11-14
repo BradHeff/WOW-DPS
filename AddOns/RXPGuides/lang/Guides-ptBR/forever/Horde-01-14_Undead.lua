@@ -7,7 +7,7 @@ RXPGuides.RegisterGuide([[
 #disabledungeons
 << Horde
 #version 11
-#group Guia RestedXP Forever (H)
+#group Guia de Progressão Rápida do RestedXP Forever (H)
 #subgroup Guia Speedrun 1-22
 --#groupid RXP-SRGCE-H1
 #defaultfor Undead
@@ -711,7 +711,7 @@ RXPGuides.RegisterGuide([[
 #name 6-12 Clareiras de Tirisfal
 #displayname 6-13 Clareiras de Tirisfal << Paladin
 #version 11
-#group Guia RestedXP Forever (H)
+#group Guia de Progressão Rápida do RestedXP Forever (H)
 #subgroup Guia Speedrun 1-22
 --#groupid RXP-SRGCE-H1
 #defaultfor Undead
@@ -2878,6 +2878,28 @@ step << !Paladin
     >>|Tinterface/worldmap/chatbubble_64grey.blp:20|tFale com |cRXP_FRIENDLY_Necroguarda Lina|r
     .turnin 356 >>Entregue Patrulha da retaguarda
     .target Deathguard Linnea
+step
+    .goto 1420/0,73.800,2022.300
+    >>|Tinterface/worldmap/chatbubble_64grey.blp:20|tFale com |cRXP_FRIENDLY_Deathguard Linnea::1495|r
+    >>|cRXP_WARN_Esta é uma missão anterior para "The Ira of Rath'mael"|r
+    .turnin 356 >>Entregue Patrulha da retaguarda
+    .target Deathguard Linnea::1495
+    .accept 99156 >>Aceite Patrulha da retaguarda
+    .dungeon ROL
+step
+    .goto 1420/0,-765.200,2518.700
+    >>Abata |cRXP_ENEMY_Riptear|r |cRXP_WARN_(nível 13 elite)|r. Saqueie-o para obter |T134339:0|t[|cRXP_LOOT_Riptear's Coração|r]
+    >>|cRXP_WARN_Esta é uma missão anterior para "The Ira of Rath'mael"|r
+    .complete 99156,1 --|1/1 Riptear's Heart
+    .mob Riptear
+    .dungeon ROL
+step
+    .goto 1420/0,74.200,2022.400
+    >>|Tinterface/worldmap/chatbubble_64grey.blp:20|tFale com |cRXP_FRIENDLY_Deathguard Linnea::1495|r
+    >>|cRXP_WARN_Esta é uma missão anterior para "The Ira of Rath'mael"|r
+    .turnin 99156 >>Entregue Patrulha da retaguarda
+    .target Deathguard Linnea::1495
+    .dungeon ROL
 step << !Paladin
     #label EnterUC2
     #completewith Glix
@@ -3279,7 +3301,7 @@ step
 
 
 RXPGuides.RegisterGuide([[
-#group Guia RestedXP Forever (H)
+#group Guia de Progressão Rápida do RestedXP Forever (H)
 #subgroup Guia Speedrun 1-22
 --#groupid RXP-SRGCE-H1
 << Horde
@@ -4219,7 +4241,7 @@ step << Undead/Skyborne
     .dungeon RFC
 step << Undead/Skyborne
     #completewith Gazzuz
-    >>Mate os |cRXP_ENEMY_Burning Blade Orcs|r. Saqueie-os para obter a |cRXP_LOOT_Lieutenant's Insignia|r
+    >>Mate |cRXP_ENEMY_Orcs da Lâmina Ardente|r. Pegue uma |cRXP_LOOT_Insígnia do Tenente|r deles
     >>|cRXP_WARN_Esta é uma pré-missão para RFC. Tem uma chance de drop baixa|r
     .complete 5726,1 --Lieutenant's Insignia (1)
     .mob Burning Blade Fanatic
@@ -4251,7 +4273,7 @@ step << Undead/Skyborne
     .goto 1411/1,-4679.75,1501.31,15,0
     .goto 1411/1,-4684.50,1466.06,15,0
     .goto 1411/1,-4805.59,1495.67,15,0
-    >>Mate os |cRXP_ENEMY_Burning Blade Orcs|r. Saqueie-os para obter a |cRXP_LOOT_Lieutenant's Insignia|r
+    >>Mate |cRXP_ENEMY_Orcs da Lâmina Ardente|r. Pegue uma |cRXP_LOOT_Insígnia do Tenente|r deles
     >>|cRXP_WARN_Esta é uma pré-missão para RFC. Tem uma chance de drop baixa|r
     .complete 5726,1 --Lieutenant's Insignia (1)
     .mob Burning Blade Fanatic

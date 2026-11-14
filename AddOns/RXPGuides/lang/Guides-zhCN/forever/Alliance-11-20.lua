@@ -33,7 +33,7 @@ step
 step
     #ah
     .goto 1453/0,660.28,-8814.55
-    >>|Tinterface/worldmap/chatbubble_64grey.blp:20|t与 |cRXP_FRIENDLY_拍卖师亚克森|r 对话
+    >>|Tinterface/worldmap/chatbubble_64grey.blp:20|t 与 |cRXP_FRIENDLY_拍卖师亚克森|r 对话
     >>|cRXP_BUY_购买以下物品以便在西部荒野快速交任务：|r
     >>|cRXP_WARN_如果你不想这样做，或者无法完成，可以跳过此步骤|r
     >>|T133972:0|t[秃鹫肉条]
@@ -133,7 +133,7 @@ step << !Human
 step
     .goto 1436/0,1166.57,-10653.23
     >>|Tinterface/worldmap/chatbubble_64grey.blp:20|t与 |cRXP_FRIENDLY_与旅店老板对话|r
-    .vendor >>|cRXP_BUY_如有需要，购买食物/水|r
+    .vendor >>|cRXP_BUY_按需购买食物/水|r
 	.target 旅店老板希瑟尔
 step
     .goto 1436/0,1179.800,-10635.601
@@ -573,7 +573,7 @@ step << !NightElf
 step << !NightElf
     #ah
     .goto 1453/0,660.28,-8814.55
-    >>|Tinterface/worldmap/chatbubble_64grey.blp:20|t与 |cRXP_FRIENDLY_拍卖师亚克森|r 对话
+    >>|Tinterface/worldmap/chatbubble_64grey.blp:20|t 与 |cRXP_FRIENDLY_拍卖师亚克森|r 对话
     >>|cRXP_BUY_购买|r |T133970:0|t|cRXP_LOOT_[野猪肉块]|r|cRXP_BUY_ 或|r |T133970:0|t|cRXP_LOOT_[多汁狼肉]|r|cRXP_BUY_，以便稍后提升你的 |r|T133971:0|t[烹饪] |cRXP_BUY_技能|r
     >>|cRXP_WARN_你需要50点|r |T133971:0|t[烹饪]|cRXP_WARN_后续在夜色镇完成一个任务|r
     >>|cRXP_WARN_如果你不想这样做，或者无法完成，可以跳过此步骤|r
@@ -594,7 +594,7 @@ step << !NightElf
     #ah
     #optional
     .goto 1453/0,660.28,-8814.55
-    >>|Tinterface/worldmap/chatbubble_64grey.blp:20|t与 |cRXP_FRIENDLY_拍卖师亚克森|r 对话
+    >>|Tinterface/worldmap/chatbubble_64grey.blp:20|t 与 |cRXP_FRIENDLY_拍卖师亚克森|r 对话
     >>|cRXP_WARN_如果你不想这样做，或者无法完成，可以跳过此步骤|r
     >>|cRXP_BUY_购买以下物品，以便在西部荒野和黑海岸更快交任务：|r
     >>|T133972:0|t[陆行鸟肉]
@@ -653,7 +653,7 @@ step << Warlock
     .goto 1453/0,1015.33,-8978.9,15 >> 前往屠宰场，进入地下室
 step << Warlock
     .goto 1453/0,1029.89,-8971.06
-    >>|Tinterface/worldmap/chatbubble_64grey.blp:20|t与 |cRXP_FRIENDLY_厄苏拉·德林|r 对话
+    >>|Tinterface/worldmap/chatbubble_64grey.blp:20|t 与 |cRXP_FRIENDLY_厄苏拉·德林|r 对话
     .trainer >> 训练你的职业技能
     .train 6222,1
     .target 厄苏拉·德林
@@ -2990,7 +2990,7 @@ step
     .fp Ironforge >> 获取铁炉堡的飞行路径
     .target 格莱斯·瑟登
 step Warrior
-    >>|Tinterface/worldmap/chatbubble_64grey.blp:20|t与 |cRXP_FRIENDLY_比尔班·飞钳|r 对话
+    >>|Tinterface/worldmap/chatbubble_64grey.blp:20|t 与 |cRXP_FRIENDLY_比尔班·飞钳|r 对话
     .goto 1455/0,-1234.65,-5035.67
     .trainer >> 训练你的职业技能
     .target 比尔班·飞钳
@@ -3071,7 +3071,7 @@ step
     .goto 1432/0,-2631.48,-5847.50,12 >> 进入地堡。登上顶楼
 step
     .goto 1432/0,-2634.59,-5842.81
-    >>|Tinterface/worldmap/chatbubble_64grey.blp:20|t与地堡里的 |cRXP_FRIENDLY_拉格弗斯上尉|r 对话
+    >>|Tinterface/worldmap/chatbubble_64grey.blp:20|t在地堡里与 |cRXP_FRIENDLY_拉格弗斯上尉|r 对话
     .accept 267 >> 接受任务 穴居人的威胁
     .target 拉格弗斯上尉
 step
@@ -3148,7 +3148,7 @@ step
     .goto 1432/0,-2648.30,-5876.75,15 >> 沿土路上行，然后跳入地堡
 step
     .goto 1432/0,-2634.59,-5842.81
-    >>|Tinterface/worldmap/chatbubble_64grey.blp:20|t与地堡里的 |cRXP_FRIENDLY_拉格弗斯上尉|r 对话
+    >>|Tinterface/worldmap/chatbubble_64grey.blp:20|t在地堡里与 |cRXP_FRIENDLY_拉格弗斯上尉|r 对话
     .turnin 267 >> 交任务 穴居人的威胁
     .target 拉格弗斯上尉
     .isQuestComplete 267
@@ -3595,7 +3595,7 @@ step << Rogue
     .target 芬斯维克
 step << Warrior
     .goto 1455/0,-1234.65,-5035.67
-    >>|Tinterface/worldmap/chatbubble_64grey.blp:20|t与 |cRXP_FRIENDLY_比尔班·飞钳|r 对话
+    >>|Tinterface/worldmap/chatbubble_64grey.blp:20|t 与 |cRXP_FRIENDLY_比尔班·飞钳|r 对话
     .trainer >> 训练你的职业技能
     .target 比尔班·飞钳
 step << Druid
@@ -4482,7 +4482,7 @@ step
     #sticky
     #label DeleteGyromast
     #optional
-    .destroy 7442 >> 从你的背包中摧毁 |T134459:0|t[Gyromast's 钥匙]，因为不再需要了
+    .destroy 7442 >> 从背包中删除|T134459:0|t|T134459:0|t[基尔卡克的钥匙]，因为不再需要了
 step << !NightElf/!Dwarf Hunter/!Human Hunter/!Druid
     #completewith BeachedCloak
     #map Darkshore
@@ -4531,7 +4531,7 @@ step << !NightElf !Hunter
     #softcore
     #optional
     #completewith next
-    .deathskip >> 死掉并在|cRXP_FRIENDLY_灵魂医者|r 处复生
+    .deathskip >> 死亡并在 |cRXP_FRIENDLY_灵魂医者|r 处重生
     .target 灵魂医者
 step << !NightElf
     .goto 1439/1,492.36,6581.08--c:1439,37.394,40.128
@@ -4854,7 +4854,7 @@ step << Shaman
     .bronzetube
 step << Shaman
     .goto 1437/0,-782.03,-3793.12
-    >>|Tinterface/worldmap/chatbubble_64grey.blp:20|t与 |cRXP_FRIENDLY_谢尔雷|r 交谈
+    >>|Tinterface/worldmap/chatbubble_64grey.blp:20|t与 |cRXP_FRIENDLY_谢尔雷|r 对话
     .fly Ironforge >> 飞往铁炉堡
     .target 谢尔雷·布隆迪尔
 step << Shaman
@@ -4941,7 +4941,7 @@ step << Warlock
     .goto 1453/0,1015.33,-8978.9,15 >> 前往屠宰场，进入地下室
 step << Warlock
     .goto 1453/0,1029.98,-8971.01
-    >>|Tinterface/worldmap/chatbubble_64grey.blp:20|t与 |cRXP_FRIENDLY_厄苏拉·德林|r 对话
+    >>|Tinterface/worldmap/chatbubble_64grey.blp:20|t 与 |cRXP_FRIENDLY_厄苏拉·德林|r 对话
     .trainer >> 训练你的职业技能
     .target 厄苏拉·德林
 step << Warlock/Priest
@@ -5074,7 +5074,7 @@ step << Rogue
 step -- must be on quest now to loot Great Goretusk Snout
     #ah
     .goto 1453/0,660.28,-8814.55
-    >>|Tinterface/worldmap/chatbubble_64grey.blp:20|t与 |cRXP_FRIENDLY_拍卖师亚克森|r 对话
+    >>|Tinterface/worldmap/chatbubble_64grey.blp:20|t 与 |cRXP_FRIENDLY_拍卖师亚克森|r 对话
     >>购买|T134437:0|t[抗毒药剂] 用于你稍后的 |T132290:0|t[毒药] 职业任务，其余的留着稍后在赤脊山快速交任务 << !Dwarf Rogue
     >>购买以下物品，以便稍后在赤脊山更快地完成任务 << !Rogue/Dwarf Rogue
     >>这样可以节省时间，因为你不需要四处跑去找怪击杀。如果你不想购买，可以跳过这一步
@@ -5217,9 +5217,9 @@ step << Warlock
     .turnin 34 >> 交任务不速之客
 step << Rogue
     .goto 1433/0,-2180.19,-9328.21
-    >>|Tinterface/worldmap/chatbubble_64grey.blp:20|t与|cRXP_FRIENDLY_卢修斯|r 对话
+    >>|Tinterface/worldmap/chatbubble_64grey.blp:20|t 与 |cRXP_FRIENDLY_卢修斯|r 对话
     .turnin 2281 >> 交任务 赤脊山的联络员
-    .accept 2282 >> 接受任务 奥瑟尔伐木场
+    .accept 2282 >> 接受任务奥瑟尔伐木场
     .target Lucius
 step
 	>>|Tinterface/worldmap/chatbubble_64grey.blp:20|t与|cRXP_FRIENDLY_肖恩|r对话
@@ -5463,10 +5463,10 @@ step
     .goto 1433/0,-2152.62,-9216.430
     .turnin 131 >> 交任务 水仙诉衷情
 step << Rogue
-	>>|Tinterface/worldmap/chatbubble_64grey.blp:20|t与|cRXP_FRIENDLY_卢修斯|r 对话
+	>>|Tinterface/worldmap/chatbubble_64grey.blp:20|t 与 |cRXP_FRIENDLY_卢修斯|r 对话
 	.target Lucius
     .goto 1433/0,-2180.19,-9328.21
-    .turnin 2282 >> 交任务奥瑟尔伐木场
+    .turnin 2282 >> 交任务 奥瑟尔伐木场
 step
 	>>|Tinterface/worldmap/chatbubble_64grey.blp:20|t与 |cRXP_FRIENDLY_希拉里|r 对话
 	.target Hilary
@@ -5700,7 +5700,7 @@ step << Warlock
     .goto 1453/0,1015.33,-8978.9,15 >> 前往屠宰场，进入地下室
 step << Warlock
     .goto 1453/0,1029.98,-8971.01
-    >>|Tinterface/worldmap/chatbubble_64grey.blp:20|t与 |cRXP_FRIENDLY_厄苏拉·德林|r 对话
+    >>|Tinterface/worldmap/chatbubble_64grey.blp:20|t 与 |cRXP_FRIENDLY_厄苏拉·德林|r 对话
     .trainer >> 训练你的职业技能
     .target 厄苏拉·德林
 step << Warlock
@@ -5772,7 +5772,7 @@ step << Rogue
     .goto 1453/0,323.43,-8817.83,5 >> 进入 SI:7 总部。前往楼上，前去找 |cRXP_FRIENDLY_马迪亚斯·肖尔大师|r
 step << Rogue
     >>|Tinterface/worldmap/chatbubble_64grey.blp:20|t与 |cRXP_FRIENDLY_马迪亚斯·肖尔大师|r 对话
-    .accept 2360 >> 接受任务马迪亚斯和迪菲亚盗贼
+    .accept 2360 >> 接受任务 马迪亚斯和迪菲亚盗贼
     .goto 1453/0,362.28,-8815.23
     .target 马迪亚斯·肖尔大师
 step << Warrior
@@ -5831,7 +5831,7 @@ step << Rogue
     .goto 1436/0,619.17,-11035.20
     >>|Tinterface/worldmap/chatbubble_64grey.blp:20|t与 |cRXP_FRIENDLY_密探吉尔妮|r 对话
     >>|cRXP_WARN_你必须完成此任务才能解锁|r |T132290:0|t[毒药]。
-    .turnin 2360 >> 交任务 马迪亚斯和迪菲亚盗贼
+    .turnin 2360 >> 交任务马迪亚斯和迪菲亚盗贼
     .accept 2359 >> 接受任务 克拉文之塔
     .target Agent Kearnen
 step << Rogue
@@ -5950,7 +5950,7 @@ step << Rogue
     .goto 1453/0,362.28,-8815.23
     >>|Tinterface/worldmap/chatbubble_64grey.blp:20|t与 |cRXP_FRIENDLY_马迪亚斯·肖尔大师|r 对话
     >>|cRXP_WARN_如果你之前切换成了|r |T135641:0|t[匕首] |cRXP_WARN_，记得重新装备你的主武器|r << Rogue
-    .turnin 2359 >> 交任务 克拉文之塔
+    .turnin 2359 >> 交任务克拉文之塔
     .target 马迪亚斯·肖尔大师
 
 

@@ -206,7 +206,7 @@ step << Horde Shaman
     .xp <1,1
     .goto 2521,42.79,23.57
     >>|Tinterface/worldmap/chatbubble_64grey.blp:20|t与 |cRXP_FRIENDLY_塑风者波罗::251374|r 对话。
-    .train 8017 >>影袭 |T136086:0|t[石化武器]
+    .train 8017 >>学习 |T136086:0|t[石化武器]
     .target Windshaper Boro::251374
     .skipgossipid 136811
 step << Hunter
@@ -2219,7 +2219,7 @@ step
     >>击杀 |cRXP_ENEMY_幼年角鹰兽::251291|r、|cRXP_ENEMY_角鹰兽保卫者::251284|r 和 |cRXP_ENEMY_角鹰兽雌兽::251261|r。
     *|cRXP_WARN_拾取它们的有价值的杂物并进行出售，来支付武器升级和职业训练的费用|r。
     *|cRXP_WARN_优先击杀 |cRXP_ENEMY_主母::251261|r|r
-    *|cRXP_WARN_Hippogryphs 速度极快。如果情况危险，不要试图逃脱它们|r。
+    *|cRXP_WARN_角鹰兽速度极快。如果情况危险，不要试图逃脱它们|r。
     .complete 92516,1 --|8/8 Hippogryph Youth slain
     .mob +Hippogryph Youth::251291
     .complete 92516,2 --|6/6 Hippogryph Protector slain
@@ -2234,7 +2234,7 @@ step
     >>击杀 |cRXP_ENEMY_幼年角鹰兽::251291|r、|cRXP_ENEMY_角鹰兽保卫者::251284|r 和 |cRXP_ENEMY_角鹰兽雌兽::251261|r。
     *|cRXP_WARN_拾取它们的有价值的杂物并进行出售，来支付武器升级和职业训练的费用|r。
     *|cRXP_WARN_优先击杀 |cRXP_ENEMY_主母::251261|r|r
-    *|cRXP_WARN_Hippogryphs 速度极快。如果情况危险，不要试图逃脱它们|r。
+    *|cRXP_WARN_角鹰兽速度极快。如果情况危险，不要试图逃脱它们|r。
     .complete 92516,1 --|8/8 Hippogryph Youth slain
     .mob +Hippogryph Youth::251291
     .complete 92516,2 --|6/6 Hippogryph Protector slain
@@ -2817,7 +2817,7 @@ step  << Alliance
     #optional
     #completewith NearCommander
     >>击杀 |cRXP_ENEMY_奥拉凯斯唤暴者::252068|r。拾取它们的 |T133647:0|t[|cRXP_LOOT_失窃的申达尔补给品|r]。
-    *|cRXP_WARN_|cRXP_ENEMY_Al'Aketh Stormcallers|r 施放|r |T136014:0|t[Lightning 云朵]。|cRXP_WARN_远离云雾，不要拉到附近的敌人|r。
+    *|cRXP_WARN_|cRXP_ENEMY_奥拉凯斯唤雷者|r会施放|r |T136014:0|t[落雷之云]。|cRXP_WARN_离开云的范围，注意不要引到附近的敌人|r。
     >>|TInterface/cursor/crosshair/interact.blp:16|t点击 |cRXP_PICK_补给箱|r （小包）。
     .complete 92550,1 --6/6 Al'Aketh Stormcaller slain
     .complete 92551,1 --10/10 Stolen Shen'dar Supplies
@@ -2862,14 +2862,14 @@ step
     #optional
     #completewith CommanderCyclasHeadA
     >>击杀 |cRXP_ENEMY_活体闪电::251662|r。
-    *|cRXP_WARN_小心：|cRXP_ENEMY_Living Lightning|r 使用类似 雷霆一击 的能力，在单次打击中造成其近战伤害的三倍伤害|r。
+    *|cRXP_WARN_注意：|cRXP_ENEMY_闪电活体|r会使用类似雷霆一击的技能，单次攻击造成三倍于其近战伤害的伤害|r。
     .complete 92550,2 --4/4 Living Lightning slain
     .mob Living Lightning::251662
 step
     #optional
     #completewith CommanderCyclasHeadA
     >>击杀 |cRXP_ENEMY_奥拉凯斯唤暴者::252068|r。拾取它们的 |T133647:0|t[|cRXP_LOOT_失窃的申达尔补给品|r]。
-    *|cRXP_WARN_|cRXP_ENEMY_Al'Aketh Stormcallers|r 施放|r |T136014:0|t[Lightning 云朵]。|cRXP_WARN_远离云雾，不要拉到附近的敌人|r。
+    *|cRXP_WARN_|cRXP_ENEMY_奥拉凯斯唤雷者|r会施放|r |T136014:0|t[落雷之云]。|cRXP_WARN_离开云的范围，注意不要引到附近的敌人|r。
     >>|TInterface/cursor/crosshair/interact.blp:16|t点击|cRXP_PICK_补给箱|r。
     .complete 92550,1 --6/6 Al'Aketh Stormcaller slain
     .complete 92551,1 --10/10 Stolen Shen'dar Supplies
@@ -2900,12 +2900,12 @@ step
     #optional
     #completewith next
     >>击杀 |cRXP_ENEMY_活体闪电::251662|r。
-    *|cRXP_WARN_小心：|cRXP_ENEMY_Living Lightning|r 使用类似 雷霆一击 的能力，在单次打击中造成其近战伤害的三倍伤害|r。
+    *|cRXP_WARN_注意：|cRXP_ENEMY_闪电活体|r会使用类似雷霆一击的技能，单次攻击造成三倍于其近战伤害的伤害|r。
     .complete 92550,2 --4/4 Living Lightning slain
     .mob Living Lightning::251662
 step
     >>击杀 |cRXP_ENEMY_奥拉凯斯唤暴者::252068|r。拾取它们的 |T133647:0|t[|cRXP_LOOT_失窃的申达尔补给品|r]。
-    *|cRXP_WARN_|cRXP_ENEMY_Al'Aketh Stormcallers|r 施放|r |T136014:0|t[Lightning 云朵]。|cRXP_WARN_远离云雾，不要拉到附近的敌人|r。
+    *|cRXP_WARN_|cRXP_ENEMY_奥拉凯斯唤雷者|r会施放|r |T136014:0|t[落雷之云]。|cRXP_WARN_离开云的范围，注意不要引到附近的敌人|r。
     >>|TInterface/cursor/crosshair/interact.blp:16|t点击|cRXP_PICK_补给箱|r。
     .complete 92550,1 --6/6 Al'Aketh Stormcaller slain
     .complete 92551,1 --10/10 Stolen Shen'dar Supplies
@@ -2913,7 +2913,7 @@ step
 step
     #label LivingLightningA
     >>击杀 |cRXP_ENEMY_活体闪电::251662|r。
-    *|cRXP_WARN_小心：|cRXP_ENEMY_Living Lightning|r 使用类似 雷霆一击 的能力，在单次打击中造成其近战伤害的三倍伤害|r。
+    *|cRXP_WARN_注意：|cRXP_ENEMY_闪电活体|r会使用类似雷霆一击的技能，单次攻击造成三倍于其近战伤害的伤害|r。
     .complete 92550,2 --4/4 Living Lightning slain
     .mob Living Lightning::251662
 step << Horde
@@ -3380,7 +3380,7 @@ step << Alliance Hunter
     #completewith Deliver the Signet
     .xp <9,1
     .itemcount 277110,1 --Zephrali Bow
-    +|cRXP_WARN_装备|r |T7810733:0|t[泽风弓]。
+    .equip 18,277110 >>|cRXP_WARN_装备|r |T7810733:0|t[泽风弓]。
     .use 277110 --Zephrali Bow
 step << Alliance Warrior/Alliance Paladin
     .xp <9,1
@@ -3403,7 +3403,7 @@ step << Alliance Warrior/Alliance Paladin
     #completewith Deliver the Signet
     .xp <9,1
     .itemcount 277106,1 --Zephrali Smasher
-    +|cRXP_WARN_装备|r |T7792097:0|t[泽风粉碎者]。
+    .equip 16,277106 >>|cRXP_WARN_装备|r |T7792097:0|t[泽风粉碎者]。
     .use 277106 --Zephrali Smasher
 step << Alliance Shaman/Alliance Druid
     .xp <9,1
@@ -3422,7 +3422,7 @@ step << Alliance Shaman/Alliance Druid
     #completewith Deliver the Signet
     .xp <9,1
     .itemcount 277109,1 --Zephrali Greatstaff
-    +|cRXP_WARN_装备|r |T7798447:0|t[泽风巨杖]。
+    .equip 16,277109 >>|cRXP_WARN_装备|r |T7798447:0|t[泽风巨杖]。
     .use 277109 --Zephrali Greatstaff
 step << Alliance Rogue
     .xp <9,1
@@ -3445,7 +3445,7 @@ step << Alliance Rogue
     #completewith Deliver the Signet
     .xp <9,1
     .itemcount 277107,1 --Zephrali Bludgeon
-    +|cRXP_WARN_装备|r |T7791298:0|t[泽风大头棒]。
+    .equip 16,277107 >>|cRXP_WARN_装备|r |T7791298:0|t[泽风大头棒]。
     .use 277107 --Zephrali Bludgeon
 -- step << Mage/Priest/Warlock
 --     .xp <9,1
@@ -3577,7 +3577,7 @@ step << Alliance
     .cooldown spell,1259416,>0,1 -- Walk on Air
     .goto 2521,66.47,76.68,10,0
     .goto 2521,66.63,79.94
-    .cast 1259416 >>从山上跳下，使用 |T132845:0|t[踏空而行] 飞向任务发布者。
+    .cast 1259416 >>从树上跳下并使用 |T132845:0|t[踏空而行] 飞向任务发布者。
     *|cRXP_WARN_如果时机把握准确，你可以在半空中取消飞行，从而落入建筑内|r
     .usespell 1259416
     .macro Cancel Walk on Air,132845 >>取消踏空而行
@@ -3773,7 +3773,7 @@ step << Horde Hunter
     #completewith LeavingValanaarA
     .xp <9,1
     .itemcount 277110,1 --Zephrali Bow
-    +|cRXP_WARN_装备|r |T7810733:0|t[泽风弓]。
+    .equip 18,277110 >>|cRXP_WARN_装备|r |T7810733:0|t[泽风弓]。
     .use 277110 --Zephrali Bow
 step << Horde Warrior
     .xp <9,1
@@ -3795,7 +3795,7 @@ step << Horde Warrior
     #completewith LeavingValanaarA
     .xp <9,1
     .itemcount 277106,1 --Zephrali Smasher
-    +|cRXP_WARN_装备|r |T7792097:0|t[泽风粉碎者]。
+    .equip 16,277106 >>|cRXP_WARN_装备|r |T7792097:0|t[泽风粉碎者]。
     .use 277106 --Zephrali Smasher
 step << Horde Shaman/Horde Druid
     .xp <9,1
@@ -3818,7 +3818,7 @@ step << Horde Shaman/Horde Druid
     #completewith LeavingValanaarA
     .xp <9,1
     .itemcount 277109,1 --Zephrali Greatstaff
-    +|cRXP_WARN_装备|r |T7798447:0|t[泽风巨杖]。
+    .equip 16,277109 >>|cRXP_WARN_装备|r |T7798447:0|t[泽风巨杖]。
     .use 277109 --Zephrali Greatstaff
 step << Horde Rogue
     .xp <9,1
@@ -3840,7 +3840,7 @@ step << Horde Rogue
     #completewith LeavingValanaarA
     .xp <9,1
     .itemcount 277107,1 --Zephrali Bludgeon
-    +|cRXP_WARN_装备|r |T7791298:0|t[泽风大头棒]。
+    .equip 16,277107 >>|cRXP_WARN_装备|r |T7791298:0|t[泽风大头棒]。
     .use 277107 --Zephrali Bludgeon
 step << Horde
     .train 2366,3 -- Herbalism Trained
@@ -4107,7 +4107,7 @@ step << Horde Shaman
     .isQuestNotComplete 97244
     .showwhiledead
     .goto 2521,54.99,68.14
-    .deathskip >>|Tinterface/worldmap/chatbubble_64grey.blp:20|t与 |cRXP_FRIENDLY_Spirit 治疗者::6491|r 对话。
+    .deathskip >>|Tinterface/worldmap/chatbubble_64grey.blp:20|t与 |cRXP_FRIENDLY_灵魂医者::6491|r 对话。
     .skipgossipid 96031
     .skipgossipid 98031
     .target Spirit Healer::6491
@@ -4122,14 +4122,14 @@ step << Horde Shaman
     .isQuestComplete 97244
     .goto 2521,62.384,64.393,-1
     .goto 2521,54.99,68.14,-1
-    +死亡然后在 |cRXP_FRIENDLY_Spirit 治疗者::6491|r 处复活。
+    +死亡然后在 |cRXP_FRIENDLY_灵魂医者::6491|r 处复活。
 step << Horde Shaman
     .isOnQuest 97244
     .isQuestComplete 97244
     #ignorecorpse
     .showwhiledead
     .goto 2521,54.99,68.14
-    .deathskip >>|Tinterface/worldmap/chatbubble_64grey.blp:20|t与 |cRXP_FRIENDLY_Spirit 治疗者::6491|r 对话。
+    .deathskip >>|Tinterface/worldmap/chatbubble_64grey.blp:20|t与 |cRXP_FRIENDLY_灵魂医者::6491|r 对话。
     .skipgossipid 96031
     .skipgossipid 98031
     .target Spirit Healer::6491
@@ -4258,7 +4258,7 @@ step << Horde !Shaman
     .showwhiledead
     .goto 2521,48.823,83.150,-1
     .goto 2521,54.99,68.14,-1
-    .deathskip >>|Tinterface/worldmap/chatbubble_64grey.blp:20|t死亡后与 |cRXP_FRIENDLY_Spirit 治疗者::6491|r 对话。
+    .deathskip >>|Tinterface/worldmap/chatbubble_64grey.blp:20|t死亡后与 |cRXP_FRIENDLY_灵魂医者::6491|r 对话。
     .skipgossipid 96031
     .skipgossipid 98031
     .target Spirit Healer::6491
@@ -4342,7 +4342,7 @@ step << Horde !Hunter
     .isOnQuest 92703
     .goto 2521,58.986,75.460
     >>|Tinterface/worldmap/chatbubble_64grey.blp:20|t与 |cRXP_FRIENDLY_蕾莉·三铸::257422|r 对话。
-    .vendor 257422 >>|cRXP_WARN_向商人购买、出售和维修（如需要）|r。
+    .vendor 257422 >>|cRXP_WARN_如果需要，出售物品并修理装备|r。
     *别卖 |T132832:0|t[小蛋] 和 |T133972:0|t[陆行鸟肉]。
     *|cRXP_WARN_之后烹饪会用到它们|r。
     .target Railee Thriceforged::257422
@@ -4365,9 +4365,9 @@ step
     .target Alvarion Windfield::252448
 step
     #completewith Accept Catching Wind
-    *|cRXP_WARN_装备|r |T134435:0|t[种植铲] << Warrior/Shaman/Paladin
-    *|cRXP_WARN_装备|r |T133057:0|t[屋面锤] << Druid/Priest
-    *|cRXP_WARN_装备|r |T134520:0|t[可靠的扳手] << Rogue
+    .equip 16,263312 >>|cRXP_WARN_装备|r |T134435:0|t[种植铲] << Warrior/Shaman/Paladin
+    .equip 16,263314 >>|cRXP_WARN_装备|r |T133057:0|t[屋面锤] << Druid/Priest
+    .equip 16,263313 >>|cRXP_WARN_装备|r |T134520:0|t[可靠的扳手] << Rogue
     .use 263312 << Warrior/Shaman/Paladin -- Planting Shovel
     .use 263314 << Druid/Priest -- Roofing Hammer
     .use 263313 << Rogue -- Trusty Wrench
@@ -4438,7 +4438,7 @@ step << Warrior/Paladin
     #completewith Learn << Horde
     .xp <9,1
     .itemcount 277106,1 --Zephrali Smasher
-    +|cRXP_WARN_装备|r |T7792097:0|t[泽风粉碎者]。
+    .equip 16,277106 >>|cRXP_WARN_装备|r |T7792097:0|t[泽风粉碎者]。
     .use 277106 --Zephrali Smasher
 step << Shaman/Druid
     .xp <9,1
@@ -4461,7 +4461,7 @@ step << Shaman/Druid
     #completewith Learn << Horde
     .xp <9,1
     .itemcount 277109,1 --Zephrali Greatstaff
-    +|cRXP_WARN_装备|r |T7798447:0|t[泽风巨杖]。
+    .equip 16,277109 >>|cRXP_WARN_装备|r |T7798447:0|t[泽风巨杖]。
     .use 277109 --Zephrali Greatstaff
 step << Rogue
     .money <0.09
@@ -4500,7 +4500,7 @@ step << Rogue
     #completewith Learn << Horde
     .xp <9,1
     .itemcount 277107,1 --Zephrali Bludgeon
-    +|cRXP_WARN_装备|r |T7791298:0|t[泽风大头棒]。
+    .equip 16,277107 >>|cRXP_WARN_装备|r |T7791298:0|t[泽风大头棒]。
     .use 277107 --Zephrali Bludgeon
 step << Hunter
     .goto 2521,59.55,73.3,25,0
@@ -4538,7 +4538,7 @@ step << Hunter
     #completewith Learn << Horde
     .xp <9,1
     .itemcount 277110,1 --Zephrali Bow
-    +|cRXP_WARN_装备|r |T7810733:0|t[泽风弓]。
+    .equip 18,277110 >>|cRXP_WARN_装备|r |T7810733:0|t[泽风弓]。
     .use 277110 --Zephrali Bow
 step << Horde Druid
     .subzoneskip 16638,1 -- Valanaar
@@ -4722,8 +4722,8 @@ step << Horde Hunter
 step << Horde Hunter
     .isOnQuest 93317
     .goto 2521,58.986,75.460
-    >>|Tinterface/worldmap/chatbubble_64grey.blp:20|t与 |cRXP_FRIENDLY_Railee Thriceforged::257422|r 对话。
-    .vendor 257422 >>|cRXP_WARN_向商人购买、出售和维修（如需要）|r。
+    >>|Tinterface/worldmap/chatbubble_64grey.blp:20|t与 |cRXP_FRIENDLY_蕾莉·三铸::257422|r 对话。
+    .vendor 257422 >>|cRXP_WARN_如果需要，出售物品并修理装备|r。
     *别卖 |T132832:0|t[小蛋] 和 |T133972:0|t[陆行鸟肉]。
     *|cRXP_WARN_之后烹饪会用到它们|r。
     .target Railee Thriceforged::257422
@@ -4743,7 +4743,7 @@ step << Alliance
     .isOnQuest 92840 -- Catching Wind
     .showwhiledead
     .goto 2521,54.99,68.14
-    .deathskip >>|Tinterface/worldmap/chatbubble_64grey.blp:20|t与 |cRXP_FRIENDLY_Spirit 治疗者::6491|r 对话。
+    .deathskip >>|Tinterface/worldmap/chatbubble_64grey.blp:20|t与 |cRXP_FRIENDLY_灵魂医者::6491|r 对话。
     .skipgossipid 96031
     .skipgossipid 98031
     .target Spirit Healer::6491
@@ -5212,7 +5212,7 @@ step << Alliance !Druid
     .cooldown spell,1259416,>0,1 -- Walk on Air
     .goto 2521,66.47,76.64,10,0
     .goto 2521,65.36,71.79
-    .cast 1259416 >>从山上跳下，使用 |T132845:0|t[踏空而行] 飞向路径点位置。
+    .cast 1259416 >>从树上跳下，使用 |T132845:0|t[踏空而行] 飞向路径点位置。
     .usespell 1259416
 step << Alliance
     .goto 2521,65.956,74.309
@@ -5449,7 +5449,7 @@ step << Alliance
     .goto 2521,66.47,76.61,8,0
     .goto 2521,66.31,76.18,15,0
     .goto 2521,63.14,76.9
-    .cast 1259416 >>从山上跳下，使用 |T132845:0|t[踏空而行] 飞向路径点位置。
+    .cast 1259416 >>从树上跳下，使用 |T132845:0|t[踏空而行] 飞向路径点位置。
     .usespell 1259416
 step << Alliance
     .subzoneskip 16638,1 -- Valanaar
@@ -5485,7 +5485,7 @@ step << Hunter Alliance
     #completewith secluded house
     .xp <9,1
     .itemcount 277110,1 --Zephrali Bow
-    +|cRXP_WARN_装备|r |T7810733:0|t[泽风弓]。
+    .equip 18,277110 >>|cRXP_WARN_装备|r |T7810733:0|t[泽风弓]。
     .use 277110 --Zephrali Bow
 step << Warrior Alliance/Paladin Alliance
     .xp <9,1
@@ -5508,7 +5508,7 @@ step << Warrior Alliance/Paladin Alliance
     #completewith secluded house
     .xp <9,1
     .itemcount 277106,1 --Zephrali Smasher
-    +|cRXP_WARN_装备|r |T7792097:0|t[泽风粉碎者]。
+    .equip 16,277106 >>|cRXP_WARN_装备|r |T7792097:0|t[泽风粉碎者]。
     .use 277106 --Zephrali Smasher
 step << Rogue Alliance
     .xp <9,1
@@ -5531,7 +5531,7 @@ step << Rogue Alliance
     #completewith secluded house
     .xp <9,1
     .itemcount 277107,1 --Zephrali Bludgeon
-    +|cRXP_WARN_装备|r |T7791298:0|t[泽风大头棒]。
+    .equip 16,277107 >>|cRXP_WARN_装备|r |T7791298:0|t[泽风大头棒]。
     .use 277107 --Zephrali Bludgeon
 -- step << Alliance
 --     .subzoneskip 16638,1 -- Valanaar
@@ -5646,10 +5646,10 @@ step << Rogue Alliance
 step << Alliance
     .isNotOnQuest 98512 --Al'Aketh Assassins
     .isQuestAvailable 98512 --Al'Aketh Assassins
-    .goto 2521,66.49,76.65,8,0
+    -- .goto 2521,66.49,76.65,8,0
     .goto 2521,68.84,78.42,-1
     .goto 2521,60.74,78.02,-1
-    .subzone 16626 >>跳下悬崖。
+    .subzone 16626 >>跳下悬崖
 step << Alliance
     #ignorecorpse
     .subzoneskip 16626,1 -- Gustberry Lowlands
@@ -5657,7 +5657,7 @@ step << Alliance
     .isQuestAvailable 98512 --Al'Aketh Assassins
     .showwhiledead
     .goto 2521,54.99,68.14
-    .deathskip >>|Tinterface/worldmap/chatbubble_64grey.blp:20|t与 |cRXP_FRIENDLY_Spirit 治疗者::6491|r 对话。
+    .deathskip >>|Tinterface/worldmap/chatbubble_64grey.blp:20|t与 |cRXP_FRIENDLY_灵魂医者::6491|r 对话。
     .skipgossipid 96031
     .skipgossipid 98031
     .target Spirit Healer::6491
@@ -6045,7 +6045,6 @@ step
     #hidewindow
     #completewith ToHermit << Alliance
     #completewith ForestHollowsA << Horde
-    #loop
     .goto 2521,62.83,38.25,35,0
     .goto 2521,62.08,36.7,35,0
     .goto 2521,61.17,35.44,35,0
@@ -6212,6 +6211,12 @@ step
     .turnin 93165,2 >>交任务 充耳不闻的怜悯 << Mage/Priest/Warlock
     .turnin 93165,3 >>交任务 充耳不闻的怜悯 << Warrior/Paladin
     .target Vayn Moongaze::254151
+step << Alliance
+    .goto 2521,63.80,36.00
+    .itemcount 265476,1
+    >>使用你背包中的 |T134332:0|t[撕破的信件] 来开始任务。
+    .accept 94490 >>接受任务 撕破的信件
+    .use 265476 -- Ripped Missive
 step
     .goto 2521,63.93,33.76,20,0
     .goto 2521,63.69,32.49,20,0
@@ -6299,8 +6304,8 @@ step
     .vendor 255940 >>把垃圾物品卖给商人
     .collect 1179,20 << Mage/Druid/Shaman/Priest/Warlock/Paladin -- Ice Cold Milk
     *别卖 |T133970:0|t[多汁狼肉]、|T132832:0|t[小蛋] 或 |T133972:0|t[陆行鸟肉]。 << Alliance
-    *不要出售 |T132832:0|t[小 道具] 和 |T133972:0|t[Strider 肉]。 << Horde
-    *|cRXP_WARN_我们之后会用它们烹饪|r。
+    *别卖 |T132832:0|t[小蛋] 和 |T133972:0|t[陆行鸟肉]。 << Horde
+    *|cRXP_WARN_之后烹饪会用到它们|r。
     .skipgossipid 137078
     .target Donaal Downbreeze::255940
 
@@ -6473,7 +6478,7 @@ step << Alliance
     .cooldown spell,1259416,>0,1 -- Walk on Air
     .goto 2521,66.49,76.64,8,0
     .goto 2521,63.33,78.16
-    .cast 1259416 >>从山上跳下，使用 |T132845:0|t[踏空而行] 飞向路径点位置。
+    .cast 1259416 >>从树上跳下，使用 |T132845:0|t[踏空而行] 飞向路径点位置。
     .usespell 1259416
 step << Alliance
     .goto 2521,63.33,78.16,30,0
@@ -6562,7 +6567,7 @@ step << Alliance
     .goto 2521,66.49,76.64,8,0
     .goto 2521,66.39,76.26,10,0
     .goto 2521,63.9,74.16
-    .cast 1259416 >>从山上跳下，使用 |T132845:0|t[踏空而行] 飞向路径点位置。
+    .cast 1259416 >>从树上跳下，使用 |T132845:0|t[踏空而行] 飞向路径点位置。
     .usespell 1259416
 step << Alliance
     .subzoneskip 16638,1 -- Valanaar
@@ -7194,10 +7199,10 @@ step << Horde
     .target Riaani Nightwind::256083
 step << Horde
     .goto 2521,58.986,75.460
-    >>|Tinterface/worldmap/chatbubble_64grey.blp:20|t与 |cRXP_FRIENDLY_Railee Thriceforged::257422|r 对话。
-    .vendor 257422 >>|cRXP_WARN_向商人购买、出售和维修（如需要）|r。
-    *不要出售 |T132832:0|t[小 道具] 和 |T133972:0|t[Strider 肉]。
-    *|cRXP_WARN_我们之后会用它们烹饪|r。
+    >>|Tinterface/worldmap/chatbubble_64grey.blp:20|t与 |cRXP_FRIENDLY_蕾莉·三铸::257422|r 对话。
+    .vendor 257422 >>|cRXP_WARN_如果需要，出售物品并修理装备|r。
+    *别卖 |T132832:0|t[小蛋] 和 |T133972:0|t[陆行鸟肉]。
+    *|cRXP_WARN_之后烹饪会用到它们|r。
     .target Railee Thriceforged::257422
 step << Horde
     #optional
@@ -7248,7 +7253,7 @@ step << Horde
     .isOnQuest 95350
     .subzoneskip 1638,1
     .goto 1456/1,-74.900,-981.700
-    .deathskip >>|Tinterface/worldmap/chatbubble_64grey.blp:20|t与 |cRXP_FRIENDLY_Spirit 治疗者::6491|r 对话。
+    .deathskip >>|Tinterface/worldmap/chatbubble_64grey.blp:20|t与 |cRXP_FRIENDLY_灵魂医者::6491|r 对话。
     .skipgossipid 96031
     .skipgossipid 98031
     .target Spirit Healer::6491

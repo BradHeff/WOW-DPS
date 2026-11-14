@@ -626,6 +626,7 @@ function addon.ui.v2.configurator:RegisterRXPV2GuideConfiguratorOption()
             this.getValue = nil
             this.setValue = nil
             this.checked = false
+            this.updateMouseInput()
 
             this.checkbg:Show()
             this:SetImage()
@@ -685,6 +686,7 @@ function addon.ui.v2.configurator:RegisterRXPV2GuideConfiguratorOption()
             this.setValue = setValue
 
             this:SetChecked(this:GetValue())
+            this.updateMouseInput()
         end,
 
         ["SetToggle"] = function(this, callback, argument)
@@ -698,6 +700,7 @@ function addon.ui.v2.configurator:RegisterRXPV2GuideConfiguratorOption()
             this.setValue = nil
             this.checkbg:Show()
             this:SetChecked(false)
+            this.updateMouseInput()
         end,
 
         ["SetChoice"] = function(this, callback, tooltip)
@@ -705,6 +708,7 @@ function addon.ui.v2.configurator:RegisterRXPV2GuideConfiguratorOption()
             this.toggleArgument = nil
             this.choiceCallback = callback
             this.checkbg:Hide()
+            this.updateMouseInput()
 
             this:SetTooltip(tooltip)
 
@@ -961,6 +965,9 @@ function addon.ui.v2.configurator:RegisterRXPV2GuideConfiguratorOption()
             frame = frame,
             type = Type
         }
+        widget.updateMouseInput = function()
+            frame:EnableMouse(widget.values ~= nil or widget.choiceCallback ~= nil or widget.toggleCallback ~= nil)
+        end
 
         for method, func in pairs(methods) do widget[method] = func end
         widget:UpdateTheme({})
@@ -1066,6 +1073,7 @@ function addon.ui.v2.configurator:CreateGuideConfigurator()
     if self.ui then return self.ui end
 
     addon.enabledFrames.RXPV2GuideConfigurator = configurator.frame
+    configurator.frame.IsFeatureEnabled = function() return configurator.frame:IsShown(), false end
     addon.settings:LoadFramePosition("RXPV2GuideConfigurator", configurator.frame)
     configurator.localstatus.top = configurator.frame:GetTop()
     configurator.localstatus.left = configurator.frame:GetLeft()
@@ -1212,7 +1220,7 @@ function addon.ui.v2.configurator:CreateGuideConfigurator()
 
         local options = type(page.options) == "function" and page.options() or page.options
         local hidden, padding, setting
-        if #options == 0 then
+        if #options == 0 and not (addon.game == "FOREVER" and page.kind == "dungeonSettings") then
             local emptyLabel = AceGUI:Create("Label")
             emptyLabel:SetFullWidth(true)
 
@@ -1252,29 +1260,106 @@ function addon.ui.v2.configurator:CreateGuideConfigurator()
         end
 
         if page.kind == "dungeonSettings" then
-            dungeons = addon.settings.dungeons:GetAllEnabledDungeons(currentGroup)
+            if addon.game ~= "FOREVER" then
+                dungeons = addon.settings.dungeons:GetAllEnabledDungeons(currentGroup)
+                local dungeonKeys = {}
+                for key in pairs(dungeons) do dungeonKeys[#dungeonKeys + 1] = key end
+                table.sort(dungeonKeys, function(a, b) return dungeons[a] < dungeons[b] end)
 
-            local heading = AceGUI:Create("Heading")
-            heading:SetFullWidth(true)
-            heading:SetText(L("Dungeon List"))
-            configurator.scrollContainer:AddChild(heading)
+                local heading = AceGUI:Create("Heading")
+                heading:SetFullWidth(true)
+                heading:SetText(L("Dungeon List"))
+                configurator.scrollContainer:AddChild(heading)
 
-            local dungeonKeys = {}
-            for key in pairs(dungeons) do dungeonKeys[#dungeonKeys + 1] = key end
-            table.sort(dungeonKeys, function(a, b) return dungeons[a] < dungeons[b] end)
+                local check
+                for _, key in ipairs(dungeonKeys) do
+                    check = AceGUI:Create("RXPV2GuideConfiguratorOption")
+                    check:SetFullWidth(true)
+                    check:SetSetting(addon.settings.profile.dungeons, key,
+                                    function() setDungeonMode("customDungeons") end)
+                    check:SetLabel(dungeons[key])
+                    configurator.scrollContainer:AddChild(check)
+                    dungeonChecks[#dungeonChecks + 1] = check
+                end
 
-            local check
-            for _, key in ipairs(dungeonKeys) do
-                check = AceGUI:Create("RXPV2GuideConfiguratorOption")
-                check:SetFullWidth(true)
-                check:SetSetting(addon.settings.profile.dungeons, key,
-                                 function() setDungeonMode("customDungeons") end)
-                check:SetLabel(dungeons[key])
-                configurator.scrollContainer:AddChild(check)
-                dungeonChecks[#dungeonChecks + 1] = check
+                refreshDungeonValues()
+            else
+                local available = {}
+                local guide = addon.currentGuide
+                local group = currentGroup or (guide and guide.group)
+                local override = group and addon.dungeonOverride[group]
+
+                if not (group and guide and guide.group == group and guide.disabledungeons) then
+                    available = CopyTable(RXPCData.guideMetaData.enabledDungeons[addon.player.faction] or {})
+
+                    if addon.player.hardcore and addon.dungeonStats and addon.GetDungeonName then
+                        for key in pairs(addon.dungeonStats[addon.player.faction] or {}) do
+                            available[key] = available[key] or addon.GetDungeonName(key)
+                        end
+                    end
+
+                    if override then
+                        for key in pairs(override) do available[key] = nil end
+                    end
+                end
+
+                local enabled, required = addon.settings.dungeons:GetAllEnabledDungeons(currentGroup)
+                for key in pairs(required) do available[key] = enabled[key] end
+
+                local theme = addon.v2:GetTheme()
+                local textColor = theme.textColor.common
+                local requiredKeys, optionalKeys = {}, {}
+
+                for key in pairs(available) do
+                    if required[key] then
+                        requiredKeys[#requiredKeys + 1] = key
+                    else
+                        optionalKeys[#optionalKeys + 1] = key
+                    end
+                end
+
+                table.sort(requiredKeys, function(a, b) return available[a] < available[b] end)
+                table.sort(optionalKeys, function(a, b) return available[a] < available[b] end)
+
+                local check, sectionHeading
+                if #requiredKeys > 0 then
+                    sectionHeading = AceGUI:Create("Heading")
+                    sectionHeading:SetFullWidth(true)
+                    sectionHeading:SetText(L("Required Dungeons"))
+                    configurator.scrollContainer:AddChild(sectionHeading)
+                end
+
+                for _, key in ipairs(requiredKeys) do
+                    check = AceGUI:Create("RXPV2GuideConfiguratorOption")
+                    check:SetFullWidth(true)
+                    check:SetLabel(available[key])
+                    check:SetChecked(true)
+                    configurator.scrollContainer:AddChild(check)
+                end
+
+                if #optionalKeys > 0 then
+                    sectionHeading = AceGUI:Create("Heading")
+                    sectionHeading:SetFullWidth(true)
+                    sectionHeading:SetText(L("Optional Dungeons"))
+                    configurator.scrollContainer:AddChild(sectionHeading)
+
+                    local description = AceGUI:Create("Label")
+                    description:SetFullWidth(true)
+                    description:SetFont(theme.font, addon.settings.profile.guideFontSize - 1, "")
+                    description:SetColor(textColor[1], textColor[2], textColor[3], 0.72)
+                    description:SetText(L("These dungeons are less efficient for your class, but you can select them if you'd like to include them in your route.") .. "\n\n")
+                    configurator.scrollContainer:AddChild(description)
+
+                    for _, key in ipairs(optionalKeys) do
+                        check = AceGUI:Create("RXPV2GuideConfiguratorOption")
+                        check:SetFullWidth(true)
+                        check:SetSetting(addon.settings.profile.dungeons, key)
+                        check:SetLabel(available[key])
+                        configurator.scrollContainer:AddChild(check)
+                        dungeonChecks[#dungeonChecks + 1] = check
+                    end
+                end
             end
-
-            refreshDungeonValues()
         end
 
         configurator.scrollContainer:DoLayout()
@@ -1429,8 +1514,12 @@ function addon.ui.v2.configurator:CreateGuideConfigurator()
 
     configurator.resetbutton:SetText(L("Clear All"))
     configurator.resetbutton:SetScript("OnClick", function()
-        addon.settings.dungeons:SetNone()
-        setDungeonMode("customDungeons")
+        if addon.game ~= "FOREVER" then
+            addon.settings.dungeons:SetNone()
+            setDungeonMode("customDungeons")
+        else
+            for _, check in ipairs(dungeonChecks) do check:SetValue(false) end
+        end
     end)
 
     configurator.backbutton:SetScript("OnClick", function(this) pageBackward() end)
@@ -1480,11 +1569,13 @@ function addon.ui.v2.configurator:GetGuideChoices(guideGroup, subgroup, icon, gu
         guides = addon.GetSelectableGuidesInGroup(guideGroup, subgroup, true)
     end
     local recommendedGuide
+    local isDefaultGuideGroup = guideGroup == addon.defaultGroup or guideGroup == addon.defaultGroupHC
+    local isForeverDungeonGuideGroup = guideGroup == L("RestedXP Forever Dungeon Guide (A)") or
+        guideGroup == L("RestedXP Forever Dungeon Guide (H)")
 
     table.sort(guides, function(first, second) return first.name < second.name end)
 
-    if guideGroup == addon.defaultGroup or guideGroup == addon.defaultGroupHC or guideGroup ==
-        L"RestedXP Forever Dungeon Guide (A)" or guideGroup == L"RestedXP Forever Dungeon Guide (H)" then
+    if isDefaultGuideGroup or isForeverDungeonGuideGroup then
         local playerGuides = {}
         local playerLevel = addon.player.level
         local guideName, minimumLevel, maximumLevel
@@ -1501,7 +1592,7 @@ function addon.ui.v2.configurator:GetGuideChoices(guideGroup, subgroup, icon, gu
         guides = playerGuides
     end
 
-    if guideGroup == addon.defaultGroup or guideGroup == addon.defaultGroupHC then
+    if isDefaultGuideGroup or isForeverDungeonGuideGroup then
         local currentGuide = addon.currentGuide
         for _, guide in ipairs(guides) do
             if currentGuide and guide.key == currentGuide.key then
@@ -1532,7 +1623,7 @@ function addon.ui.v2.configurator:GetGuideChoices(guideGroup, subgroup, icon, gu
             recommendedGuide = recommendedGuide or zoneGuide
         end
 
-        if not recommendedGuide then
+        if not recommendedGuide and isDefaultGuideGroup then
             local defaultGuideName = guideGroup == addon.defaultGroupHC and addon.defaultGuideHC or addon.defaultGuide
 
             if type(defaultGuideName) == "table" then defaultGuideName = defaultGuideName.name end
@@ -1574,8 +1665,7 @@ function addon.ui.v2.configurator:GetGuideChoices(guideGroup, subgroup, icon, gu
             label = L(addon.GetGuideName(selectedGuide) or selectedGuide.name),
             recommended = selectedGuide == recommendedGuide,
             callback = function()
-                if (guideGroup == addon.defaultGroup or guideGroup == addon.defaultGroupHC) and selectedGuide ~=
-                    recommendedGuide then
+                if (isDefaultGuideGroup or isForeverDungeonGuideGroup) and selectedGuide ~= recommendedGuide then
                     -- If a non-recommended guide is selected, make follow-ups are easier to see
                     addon.settings.profile.showUnusedGuides = true
                 end
@@ -1818,7 +1908,10 @@ function addon.ui.v2.configurator:LoadPages(setDungeonMode)
             icon = addon.ui.v2:GetTexture("dungeons-icon"),
             label = L("Enable Dungeons"),
             tooltip = L("Adds Dungeon Quests to your route. This is helpful to avoid longer grinding sessions."),
-            hidden = function() return not next(addon.settings.dungeons:GetAllEnabledDungeons(currentGroup)) end,
+            hidden = function()
+                local dungeons = addon.settings.dungeons:GetAllEnabledDungeons(currentGroup)
+                return not next(dungeons)
+            end,
             setting = "enableDungeons",
             callback = function()
                 local page = self.pages[self.currentPage]
@@ -1895,9 +1988,9 @@ function addon.ui.v2.configurator:LoadPages(setDungeonMode)
                 "Select your preferred features to customize the guide. The leveling route automatically adapts to your choices."),
             options = commonSettings,
             next = function()
-                if addon.game ~= "FOREVER" and addon.settings.profile.enableDungeons and
-                    next(addon.settings.dungeons:GetAllEnabledDungeons(currentGroup)) then
-                    return "dungeonOptions"
+                if addon.game ~= "FOREVER" and addon.settings.profile.enableDungeons then
+                    local dungeons = addon.settings.dungeons:GetAllEnabledDungeons(currentGroup)
+                    if next(dungeons) then return "dungeonOptions" end
                 end
                 return "speedrunGuides"
             end
@@ -1909,9 +2002,9 @@ function addon.ui.v2.configurator:LoadPages(setDungeonMode)
                 "Select your preferred features to customize the guide. The leveling route automatically adapts to your choices."),
             options = commonSettings,
             next = function()
-                if addon.game ~= "FOREVER" and addon.settings.profile.enableDungeons and
-                    next(addon.settings.dungeons:GetAllEnabledDungeons(currentGroup)) then
-                    return "survivalDungeonOptions"
+                if addon.game ~= "FOREVER" and addon.settings.profile.enableDungeons then
+                    local dungeons = addon.settings.dungeons:GetAllEnabledDungeons(currentGroup)
+                    if next(dungeons) then return "survivalDungeonOptions" end
                 end
                 return "survivalGuides"
             end
@@ -1934,11 +2027,13 @@ function addon.ui.v2.configurator:LoadPages(setDungeonMode)
         },
         speedrunGuides = {
             kind = "choices",
-            title = L("Speedrun Guide Configuration"),
+            title = L(addon.game == "FOREVER" and "Open World Guide Configuration" or
+                      "Speedrun Guide Configuration"),
             description = L("Select your preferred guide."),
             options = function()
                 return self:GetGuideChoices(addon.defaultGroup, nil,
-                                            addon.ui.v2:GetTexture("rxp-icon-speedrun_guides"))
+                                            addon.ui.v2:GetTexture(addon.game == "FOREVER" and "rxp-icon-route" or
+                                                                   "rxp-icon-speedrun_guides"))
             end
         },
         survivalGuides = {
@@ -2003,6 +2098,7 @@ function addon.ui.v2.configurator:LoadPages(setDungeonMode)
             title = L("Open World Guide Configuration"),
             description = L(
                 "Select your preferred features to customize the guide. The leveling route automatically adapts to your choices."),
+            next = function() return "speedrunGuides" end,
             options = {
                 auctionHouseOption, sharedOptions.groupQuests, sharedOptions.skipLowLevelQuests
             }
@@ -2016,9 +2112,9 @@ function addon.ui.v2.configurator:LoadPages(setDungeonMode)
             nextLabel = L("Next step"),
             next = function()
                 if addon.player.faction == "Horde" then
-                    currentGroup = L"RestedXP Forever Dungeon Guide (H)"
+                    currentGroup = L("RestedXP Forever Dungeon Guide (H)")
                 elseif addon.player.faction == "Alliance" then
-                    currentGroup = L"RestedXP Forever Dungeon Guide (A)"
+                    currentGroup = L("RestedXP Forever Dungeon Guide (A)")
                 end
                 return "foreverDungeonOptions2"
             end
@@ -2028,7 +2124,7 @@ function addon.ui.v2.configurator:LoadPages(setDungeonMode)
             title = L("Dungeon Configuration"),
             description = L(
                 "Add dungeons to your journey. The guide will adjust to your selection accordingly and include dungeon quests to your route."),
-            options = dungeonOptions,
+            options = {},
             next = function() return "foreverDungeonGuides" end
         }
         pages.foreverDungeonGuides = {
@@ -2037,8 +2133,8 @@ function addon.ui.v2.configurator:LoadPages(setDungeonMode)
             description = L("Select your preferred guide."),
             options = function()
                 return self:GetGuideChoices(addon.player.faction == "Horde" and
-                                                L"RestedXP Forever Dungeon Guide (H)" or
-                                                L"RestedXP Forever Dungeon Guide (A)", nil,
+                                                L("RestedXP Forever Dungeon Guide (H)") or
+                                                L("RestedXP Forever Dungeon Guide (A)"), nil,
                                             addon.ui.v2:GetTexture("dungeons-icon"))
             end
         }

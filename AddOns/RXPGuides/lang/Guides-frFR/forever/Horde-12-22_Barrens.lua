@@ -571,19 +571,12 @@ step
     .mob Sunscale Screecher
 step
     #optional
-    #completewith next
+    #completewith RatchetEnter
     .goto 1413/1,-3851.27,-526.53,100,0
     >>Tuez les |cRXP_ENEMY_Zhevra Runners|r. Dépouillez-les pour leur |cRXP_LOOT_Hooves|r
     .complete 845,1 --Zhevra Hooves (4)
     .mob Zhevra Runner
     .isOnQuest 872
-step
-    #optional
-    #completewith next
-    >>Tuez les |cRXP_ENEMY_Zhevra Runners|r. Dépouillez-les pour leur |cRXP_LOOT_Hooves|r
-    .complete 845,1 --Zhevra Hooves (4)
-    .mob Zhevra Runner
-    .isNotOnQuest 872
 step
     #label RatchetEnter
     .goto 1413/1,-3728.66,-835.29
@@ -623,7 +616,7 @@ step << Undead Warrior/Skyborne Warrior
 step << Undead Warrior/Skyborne Warrior
     #optional
     #completewith BaronLongshore
-    +Équipez l'[Espadon] lorsque vous passez niveau 16
+    +Équipez l'[Espadon] lorsque vous passez au niveau 16
     .use 2024
     .itemcount 2024,1
     .itemStat 16,QUALITY,<7
@@ -874,7 +867,7 @@ step << Undead Warrior/Skyborne Warrior
 step << Undead Warrior/Skyborne Warrior
     #optional
     #completewith FlyToXroads1
-    +Équipez l'[Espadon] lorsque vous passez niveau 16
+    +Équipez l'[Espadon] lorsque vous passez au niveau 16
     .use 2024
     .itemcount 2024,1
     .itemStat 16,QUALITY,<7
@@ -1152,14 +1145,14 @@ step << Troll Hunter/Orc Hunter
 step << Tauren Hunter
     .goto 1413/1,-2612.98,-411.00
     >>|Tinterface/worldmap/chatbubble_64grey.blp:20|t|cRXP_BUY_Parlez à|r |cRXP_FRIENDLY_Barg|r
-    >>|cRXP_BUY_Achetez des|r [Balle lourde] |cRXP_BUY_à Kennah|r
+    >>|cRXP_BUY_Achetez des|r [Balle lourde] |cRXP_BUY_à Barg|r
     .collect 2519,1000,850,1 << Hunter --Heavy Shot (1000)
     .target Barg
 step << Troll Hunter/Orc Hunter/Skyborne Hunter
     .goto 1413/1,-2556.23,-351.54
     >>|Tinterface/worldmap/chatbubble_64grey.blp:20|t|cRXP_BUY_Parlez à|r |cRXP_FRIENDLY_Uthrok|r
     .vendor >> |cRXP_BUY_Achetez un|r [|cRXP_FRIENDLY_Bon arc long|r] |cRXP_BUY_à Uthrok si il en a en stock et faites un stock de flèches|r
-    >>Si il n'est pas disponible, achetez un [Arc renforcé] à la place
+    >>Si il n'est pas disponible, achetez à la place un [Arc renforcé]
     .collect 2515,1200,870,1 << Hunter --Sharp Arrow (1200)
     .target Uthrok
     .isOnQuest 903
@@ -1296,7 +1289,7 @@ step
     .mob Witchwing Roguefeather
 step
     #completewith Samophlange
-    +Faites attention aux |cRXP_ENEMY_Sunscale Scytheclaws|r dans la zone. Ils sont niveau 18 et peuvent utiliser [Rosser]
+    +Faites attention aux |cRXP_ENEMY_Sunscale Scytheclaws|r dans la zone. Ils vont jusqu'au niveau 18 et peuvent utiliser [Rosser]
     .xp >17,1
 step
     #optional
@@ -1627,7 +1620,7 @@ step
 step
     .goto 1454/1,-4160.01,1483.17
     >>|Tinterface/worldmap/chatbubble_64grey.blp:20|tParlez à|r |cRXP_FRIENDLY_Arnok|r
-    >>Passez cette étape si vous n'avez pas assez d'[Etoffe de lin] pour monter votre compétence à 50
+    >>Passez cette étape si vous avez pas assez d'[Étoffe de lin] pour monter votre compétence à 50
     .train 3274 >> Apprenez Premiers soins compagnon
     .target Arnok
     .skill firstaid,<40,1
@@ -1776,7 +1769,7 @@ step << Warrior
 step << Warrior
     #optional
     #completewith FoodandWater2
-    +Équipez la [Hache de bataille] lorsque vous passez niveau 20
+    +Équipez la [Hache de bataile] lorsque vous passez au niveau 20
     .use 926
     .itemcount 926,1
     .itemStat 16,QUALITY,<7
@@ -1813,7 +1806,7 @@ step
 step << Rogue
     .goto 1454/1,-4284.42,1771.28
     >>|Tinterface/worldmap/chatbubble_64grey.blp:20|tParlez à |cRXP_FRIENDLY_Shenthul|r
-    .train 1804 >> Montez le niveau de votre [Crochetage]
+    .train 1804 >> Apprenez [Crochetage]
     .train 921 >> Apprenez [Vol à la tire]
     .accept 2379 >> Acceptez la quête Zando'zan
     .target Shenthul
@@ -2027,44 +2020,28 @@ step << Rogue
     .collect 7970,1,888,1 --E.C.A.C. (1)
     .collect 5060,1,888,1 --Thieves' Tools (1)
 step
+    .goto 1413/1,-3759.06,-902.18
     >>|Tinterface/worldmap/chatbubble_64grey.blp:20|tParlez à |cRXP_FRIENDLY_Sputtervalve|r et |cRXP_FRIENDLY_Dizzywig|r
     .turnin 902 >>Rendez la quête Samophlange
     .turnin 863 >> Rendez la quête La fuite
     .accept 3921 >> Acceptez la quête Wenikee Bakaboulon << Hunter
-    .accept 1483 >> Acceptez la quête Ziz Fizzik
-    .target +Sputtervalve
-    .goto 1413/1,-3759.06,-902.18
-    .turnin 896 >> Rendez la quête La bonne fortune d'un mineur pauvre
-    .target +Wharfmaster Dizzywig
-    .goto 1413/1,-3796.55,-985.28
-    .isQuestComplete 896
-    .isQuestComplete 863
-step
-    #optional
-    >>|Tinterface/worldmap/chatbubble_64grey.blp:20|tParlez à |cRXP_FRIENDLY_Sputtervalve|r et |cRXP_FRIENDLY_Dizzywig|r
-    .turnin 902 >>Rendez la quête Samophlange
-    .accept 3921 >> Acceptez la quête Wenikee Bakaboulon << Hunter
-    .accept 1483 >> Acceptez la quête Ziz Fizzik
-    .target +Sputtervalve
-    .goto 1413/1,-3759.06,-902.18
-    .turnin 896 >> Rendez la quête La bonne fortune d'un mineur pauvre
-    .target +Wharfmaster Dizzywig
-    .goto 1413/1,-3796.55,-985.28
-    .isQuestComplete 896
-step
-    #optional
-    .goto 1413/1,-3759.06,-902.18
-    >>|Tinterface/worldmap/chatbubble_64grey.blp:20|tParlez à |cRXP_FRIENDLY_Sputtervalve|r
-    .turnin 863 >> Rendez la quête La fuite
     .accept 1483 >> Acceptez la quête Ziz Fizzik
     .target Sputtervalve
     .isQuestComplete 863
 step
     #optional
     .goto 1413/1,-3759.06,-902.18
-    >>|Tinterface/worldmap/chatbubble_64grey.blp:20|tParlez à |cRXP_FRIENDLY_Sputtervalve|r
+    >>|Tinterface/worldmap/chatbubble_64grey.blp:20|tParlez à |cRXP_FRIENDLY_Sputtervalve|r et |cRXP_FRIENDLY_Dizzywig|r
+    .turnin 902 >>Rendez la quête Samophlange
+    .accept 3921 >> Acceptez la quête Wenikee Bakaboulon << Hunter
     .accept 1483 >> Acceptez la quête Ziz Fizzik
     .target Sputtervalve
+step
+    .goto 1413/1,-3796.55,-985.28
+    >>|Tinterface/worldmap/chatbubble_64grey.blp:20|tParlez à |cRXP_FRIENDLY_Dizzywig|r
+    .turnin 896 >> Rendez la quête La bonne fortune d'un mineur pauvre
+    .target Wharfmaster Dizzywig
+    .isQuestComplete 896
 step
     #label RapHornsPickup
     .goto 1413/1,-3697.24,-929.20
@@ -3699,7 +3676,7 @@ step << Rogue !Skyborne
     >>|Tinterface/worldmap/chatbubble_64grey.blp:20|tParlez à |cRXP_FRIENDLY_Ansekhwa|r
     .train 198 >>Acheter la compétence pour porter des masses à une main
     .target Ansekhwa
-step << Rogue
+step << skip --Rogue
     .goto 1456/1,110.13,-1299.65
     >>|Tinterface/worldmap/chatbubble_64grey.blp:20|t|cRXP_BUY_Parlez à|r |cRXP_FRIENDLY_Kuruk|r|cRXP_BUY_. Achetez une |r [Hache de lancer mortelle] |cRXP_BUY_à Kuruk|r
     .collect 3137,1,6562,1 --Deadly Throwing Axe (200)
@@ -3853,11 +3830,11 @@ step
     >>|Tinterface/worldmap/chatbubble_64grey.blp:20|tParlez à|r |cRXP_FRIENDLY_Pand|r
     >>Passez cette étape si vous n'avez pas assez d'[Etoffe de lin] pour monter vos [Premiers soins] à 80
     .train 3277 >> Apprenez  [Bandage en laine]
-    .train 7934 >> Apprenez [Anti-Venin] << Rogue
+    .train 7934 >> Apprenez [Anti-venin] << Rogue
     .target Pand Stonebinder
     .skill firstaid,<1,1
 step << Rogue
-    >>Fabriquez des [Anti-venin] si vous avez trouvé des [Petites glandes à venin]
+    >>Fabriquez des [Anti-Venin] si vous avez trouvé des [Petites glandes à venin]
     >>Gardez-les pour plus tard
     .collect 6452,1 --Anti Venom
     .itemcount 1475,1
@@ -4884,7 +4861,7 @@ step << Warlock
     .use 6626
 step << Warlock
     .goto 1454/1,-4377.13,1804.77
-    >>Tuez la |cRXP_ENEMY_Summoned Succubus|r
+    >>Tuez les |cRXP_ENEMY_Summoned Succubus|r
     .complete 1513,1 --Kill Summoned Succubus (1)
     .mob Summoned Succubus
     .use 6626
@@ -4967,7 +4944,7 @@ step << Mage
 step << Mage
     .goto 1454/1,-4222.85,1474.94
     >>|Tinterface/worldmap/chatbubble_64grey.blp:20|tParlez à|r |cRXP_FRIENDLY_Thuul|r en haut de la hutte
-    .train 3567 >> Apprenez [Téléportation: Orgrimmar]
+    .train 3567 >> Apprenez [Téléportation : Orgrimmar]
     .target Thuul
 step << Troll Priest
     .goto 1454/1,-4179.79,1452.580
@@ -5164,13 +5141,13 @@ step
     -->>|cRXP_WARN_You are required to have Rig Wars in your quest log to accept this quest|r
     .accept 2842 >>Acceptez la quête L'ingénieur en chef Scooty
     .target Sovik
-step << Rogue
+step << skip --Rogue
     .goto 1454/1,-4355.53,1520.68
     >>|Tinterface/worldmap/chatbubble_64grey.blp:20|t|cRXP_BUY_Parlez à|r |cRXP_FRIENDLY_Trak'gen|r|cRXP_BUY_. Achetez une |r [Hache de lancer mortelle] |cRXP_BUY_à Trak'gen|r
     .collect 3137,1,6544,1 --Deadly Throwing Axe (200)
     .target Trak'gen
 step << Rogue
-    >>Si vous avez des [Anti-Venin], utilisez-en un pour pour guérir du [Toucher de Zanzil]
+    >>Si vous avez un [Anti-Venin], utilisez-le pour vous guérir du [Toucher de Zanzil]
     .itemcount 6452,1
     .use 6452
     .aura -9991
