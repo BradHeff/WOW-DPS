@@ -1,3 +1,6 @@
+---@type QuestieCompat
+local QuestieCompat = QuestieLoader:ImportModule("QuestieCompat")
+
 ---@class QuestieDebugOffer
 local QuestieDebugOffer = QuestieLoader:CreateModule("QuestieDebugOffer")
 
@@ -19,7 +22,7 @@ local DebugInformation = {} -- stores text of debug data dump per session
 local debugIndex = 0 -- current debug index, used so we can still retrieve info from previous offers
 local openDebugWindows = {} -- determines if existing debug window is already open, prevents duplicates
 
-local GetItemInfo = C_Item.GetItemInfo or GetItemInfo
+local GetItemInfo = QuestieCompat.GetItemInfo
 local GetBestMapForUnit = C_Map.GetBestMapForUnit
 local GetPlayerMapPosition = C_Map.GetPlayerMapPosition
 local strsplit, tContains, tostring, tonumber = strsplit, tContains, tostring, tonumber
@@ -432,11 +435,6 @@ end
 
 -- Missing itemID when looting
 function QuestieDebugOffer.LootWindow()
-    if Questie.IsForever then
-        -- TODO: This needs forever support
-        return
-    end
-
     local lootInfo = GetLootInfo()
     local debugContainer, _ = GetLootSourceInfo(1) -- happens early in case the rest of the code is so slow that the container closes before we're ready
     local inInstance, _ = IsInInstance()
@@ -495,11 +493,6 @@ end
 
 -- Missing questID when conversing
 function QuestieDebugOffer.QuestDialog()
-    if Questie.IsForever then
-        -- TODO: This needs forever support
-        return
-    end
-
     local questID = GetQuestID() -- obtain quest ID from dialog
     if questID <= 0 or questID == nil then
         Questie.Debug(Questie.DEBUG_DEVELOP, "[QuestieDebugOffer] - QuestDialog - Invalid quest ID from API, ignoring")
@@ -516,6 +509,11 @@ function QuestieDebugOffer.QuestDialog()
         local objectiveText = GetObjectiveText()
         local rewardText = GetRewardText()
         local rewardXP = GetRewardXP()
+        local giverGuid = UnitGUID(questnpc)
+        if issecretvalue and issecretvalue(giverGuid) then
+            -- Preserve the report even when the client restricts the giver's identity.
+            giverGuid = "<restricted>"
+        end
 
         if questText then questText = questText:gsub(GetUnitName(player), "<playername>") end -- strip out player name from quest text
         if objectiveText then objectiveText = objectiveText:gsub(GetUnitName(player), "<playername>") end -- strip out player name from objective text
@@ -528,7 +526,7 @@ function QuestieDebugOffer.QuestDialog()
         DebugInformation[debugIndex] = DebugInformation[debugIndex] .. "\n|cFFAAAAAAObjective Text:|r " .. tostring(objectiveText)
         DebugInformation[debugIndex] = DebugInformation[debugIndex] .. "\n|cFFAAAAAAReward Text:|r " .. tostring(rewardText)
         DebugInformation[debugIndex] = DebugInformation[debugIndex] .. "\n|cFFAAAAAAReward XP:|r " .. tostring(rewardXP)
-        DebugInformation[debugIndex] = DebugInformation[debugIndex] .. "\n|cFFAAAAAAQuestgiver:|r " .. tostring(UnitGUID(questnpc))
+        DebugInformation[debugIndex] = DebugInformation[debugIndex] .. "\n|cFFAAAAAAQuestgiver:|r " .. tostring(giverGuid)
         DebugInformation[debugIndex] = _AppendUniversalText(DebugInformation[debugIndex])
         Questie:Print(l10n("A quest you just encountered is missing from the Questie database.") .. " " .. l10n("Would you like to help us fix it?") .. " |cff71d5ff|Haddon:questie:offer:" .. debugIndex .. "|h[" .. l10n("More Info") .. "]|h|r")
     end
@@ -537,18 +535,13 @@ end
 -- Missing questID when tracking
 ---@param questID number
 function QuestieDebugOffer.QuestTracking(questID) -- ID supplied by tracker during update
-    if Questie.IsForever then
-        -- TODO: This needs forever support
-        return
-    end
-
     if UnitLevel(player) < minLevelForDebugOffers then -- if player level is below our threshold, ignore it
         Questie.Debug(Questie.DEBUG_DEVELOP, "[QuestieDebugOffer] - QuestTracking - Player does not meet level threshold for debug offers, ignoring")
         return
     end
     if QuestieDB.QueryQuestSingle(questID, "name") == nil then -- if ID not in our DB
-        for i=1, GetNumQuestLogEntries() do
-            local questTitle, questLevel, suggestedGroup, _, _, _, frequency, questLogId = GetQuestLogTitle(i)
+        for i=1, QuestieCompat.GetNumQuestLogEntries() do
+            local questTitle, questLevel, suggestedGroup, _, _, _, frequency, questLogId = QuestieCompat.GetQuestLogTitle(i)
             local questText, objectiveText = GetQuestLogQuestText(i)
 
             if questText then questText = questText:gsub(GetUnitName(player), "<playername>") end -- strip out player name from quest text
@@ -574,11 +567,6 @@ local timeoutDurationOverworld = 120 -- how many seconds to ignore re-passes out
 local timeoutDurationInstance = 600 -- how many seconds to ignore re-passes outside of instances
 -- Missing NPC ID when targeting
 function QuestieDebugOffer.NPCTarget()
-    if Questie.IsForever then
-        -- TODO: This needs forever support
-        return
-    end
-
     if UnitLevel(player) < minLevelForDebugOffers then -- if player level is below our threshold, ignore it
         Questie.Debug(Questie.DEBUG_DEVELOP, "[QuestieDebugOffer] - NPCTarget - Player does not meet level threshold for debug offers, ignoring")
         return
@@ -643,12 +631,14 @@ local LINK_CODE = "addon:questie:offer";
 local LINK_LENGTHS = LINK_CODE:len();
 
 -- handles clicking on link
-hooksecurefunc("SetItemRef", function(link)
-    local linkType = link:sub(1, LINK_LENGTHS);
-    if linkType == LINK_CODE then
-        QuestieDebugOffer.ShowOffer(link)
-    end
-end);
+if SetItemRef then
+    hooksecurefunc("SetItemRef", function(link)
+        local linkType = link:sub(1, LINK_LENGTHS);
+        if linkType == LINK_CODE then
+            QuestieDebugOffer.ShowOffer(link)
+        end
+    end)
+end
 
 ---@param popupText string --@A string containing the lines of text to be displayed in the popup
 ---@param discordURL string --@A string containing the URL to the Questie Discord

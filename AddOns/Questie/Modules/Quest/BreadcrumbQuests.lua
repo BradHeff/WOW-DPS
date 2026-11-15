@@ -1,3 +1,6 @@
+---@type QuestieCompat
+local QuestieCompat = QuestieLoader:ImportModule("QuestieCompat")
+
 ---@class BreadcrumbQuests
 local BreadcrumbQuests = QuestieLoader:CreateModule("BreadcrumbQuests")
 
@@ -5,6 +8,8 @@ local BreadcrumbQuests = QuestieLoader:CreateModule("BreadcrumbQuests")
 local QuestieDB = QuestieLoader:ImportModule("QuestieDB")
 ---@type QuestiePlayer
 local QuestiePlayer = QuestieLoader:ImportModule("QuestiePlayer")
+---@type ActiveQuests
+local ActiveQuests = QuestieLoader:ImportModule("ActiveQuests")
 ---@type QuestieAnnounce
 local QuestieAnnounce = QuestieLoader:ImportModule("QuestieAnnounce")
 ---@type QuestieLink
@@ -17,14 +22,14 @@ local l10n = QuestieLoader:ImportModule("l10n")
 ---@param breadcrumbQuestId number
 ---@return boolean @Whether the quest was abandoned
 function BreadcrumbQuests.AbandonQuest(questId, breadcrumbQuestId)
-    local questLogIndex = GetQuestLogIndexByID(questId)
+    local questLogIndex = QuestieCompat.GetQuestLogIndexByID(questId)
     if questLogIndex and questLogIndex > 0 then
-        SelectQuestLogEntry(questLogIndex)
-        SetAbandonQuest()
-        AbandonQuest()
+        QuestieCompat.SelectQuestLogEntry(questLogIndex)
+        QuestieCompat.SetAbandonQuest()
+        QuestieCompat.AbandonQuest()
         local questLink = QuestieLink:GetQuestHyperLink(questId)
         local breadcrumbLink = QuestieLink:GetQuestHyperLink(breadcrumbQuestId)
-        Questie:Print(l10n("Automatically abandoned quest %s because breadcrumb quest %s is not completed.", questLink, breadcrumbLink))
+        Questie:Print(l10n("Automatically abandoned quest %s because breadcrumb quest %s is not completed.", questLink or "no quest name", breadcrumbLink or "no quest name"))
         return true
     end
     return false
@@ -42,7 +47,7 @@ function BreadcrumbQuests.CheckQuestBreadcrumbs(questId)
         local lastIncompleteBreadcrumbId = nil
         for _, breadcrumbQuestId in ipairs(breadcrumbs) do
             -- We want to let users know when they picked up a quest without finishing its breadcrumb
-            if (not Questie.db.char.complete[breadcrumbQuestId]) and (not QuestiePlayer.currentQuestlog[breadcrumbQuestId]) then
+            if (not Questie.db.char.complete[breadcrumbQuestId]) and (not ActiveQuests.Get(breadcrumbQuestId)) then
                 local requiredRaces = QuestieDB.QueryQuestSingle(breadcrumbQuestId, "requiredRaces")
                 local requiredClasses = QuestieDB.QueryQuestSingle(breadcrumbQuestId, "requiredClasses")
                 local availableUntilCompleted = QuestieDB.QueryQuestSingle(breadcrumbQuestId, "availableUntilCompleted")
@@ -51,7 +56,7 @@ function BreadcrumbQuests.CheckQuestBreadcrumbs(questId)
                 local exclusiveQuestCompleted = false
                 if exclusiveQuests then
                     for _, exclusiveQuestId in pairs(exclusiveQuests) do
-                        if Questie.db.char.complete[exclusiveQuestId] or QuestiePlayer.currentQuestlog[exclusiveQuestId] then
+                        if Questie.db.char.complete[exclusiveQuestId] or ActiveQuests.Get(exclusiveQuestId) then
                             exclusiveQuestCompleted = true
                             break
                         end
@@ -73,13 +78,5 @@ function BreadcrumbQuests.CheckQuestBreadcrumbs(questId)
         if lastIncompleteBreadcrumbId and Questie.db.profile.autoAccept.abandonBreadcrumbFollowup then
             BreadcrumbQuests.AbandonQuest(questId, lastIncompleteBreadcrumbId)
         end
-    end
-end
-
---- Checks all existing quests in the quest log for incomplete breadcrumbs.
---- Called during login initialization since QUEST_ACCEPTED does not fire for quests already in the log.
-function BreadcrumbQuests.CheckAllQuestBreadcrumbs()
-    for questId, _ in pairs(QuestiePlayer.currentQuestlog) do
-        BreadcrumbQuests.CheckQuestBreadcrumbs(questId)
     end
 end

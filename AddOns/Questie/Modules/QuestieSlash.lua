@@ -1,8 +1,13 @@
+---@type QuestiePopup
+local Popup = QuestieLoader:ImportModule("QuestiePopup")
+
 ---@class QuestieSlash
 local QuestieSlash = QuestieLoader:CreateModule("QuestieSlash")
 
 ---@type QuestieOptions
 local QuestieOptions = QuestieLoader:ImportModule("QuestieOptions")
+---@type QuestieOptionsEngine
+local QuestieOptionsEngine = QuestieLoader:ImportModule("QuestieOptionsEngine");
 ---@type QuestieJourney
 local QuestieJourney = QuestieLoader:ImportModule("QuestieJourney")
 ---@type QuestieQuest
@@ -51,7 +56,7 @@ function QuestieSlash.HandleCommands(input)
 
     if mainCommand == "" or not mainCommand then
         QuestieCombatQueue:Queue(function()
-            QuestieOptions:ToggleConfigWindow();
+            QuestieOptionsEngine:ToggleConfigWindow();
         end)
 
         if QuestieJourney:IsShown() then
@@ -63,7 +68,7 @@ function QuestieSlash.HandleCommands(input)
     -- lazy match commands
     -- command priority is last match in the table
     -- NEW COMMANDS SHOULD BE ADDED HERE
-    local ctypes = {"doable", "flex", "help", "journey", "minimap", "search", "tracker", "toggle", "tomap"}
+    local ctypes = {"doable", "flex", "help", "journey", "minimap", "search", "tracker", "toggle", "tomap", "options"}
     local tempCommand
     for i=1, #ctypes do
         local partialMatch = stringmatch(ctypes[i], "^"..mainCommand)
@@ -91,8 +96,8 @@ function QuestieSlash.HandleCommands(input)
         Questie.db.profile.enabled = (not Questie.db.profile.enabled)
         QuestieQuest:ToggleNotes(Questie.db.profile.enabled);
 
-        -- Close config window if it's open to avoid desyncing the Checkbox
-        QuestieOptions:HideFrame();
+        -- Refresh config window to sync the Checkbox
+        QuestieOptionsEngine:RefreshStates();
         return;
     end
 
@@ -108,7 +113,7 @@ function QuestieSlash.HandleCommands(input)
 
     if mainCommand == "journey" or mainCommand == "journal" then
         QuestieJourney:ToggleJourneyWindow();
-        QuestieOptions:HideFrame();
+        QuestieOptionsEngine:HideFrame()
         return;
     end
 
@@ -297,7 +302,7 @@ function QuestieSlash.HandleCommands(input)
 
         local output = table.concat(data, ",") -- generate a string list of the items, comma-separated (for json syntax)
 
-        StaticPopupDialogs["QUESTIE_ITEMDROPOUTPUT"] = {
+        Popup.Dialogs["QUESTIE_ITEMDROPOUTPUT"] = {
             text = "Questie Item Drop Output",
             button2 = CLOSE,
             hasEditBox = true,
@@ -312,7 +317,7 @@ function QuestieSlash.HandleCommands(input)
             end,
 
             OnShow = function(self)
-                local editBox = _G[self:GetName() .. "WideEditBox"] or _G[self:GetName() .. "EditBox"] -- this is new as of midnight??? editBox isn't instantiated anymore for some reason
+                local editBox = self.EditBox
                 editBox:SetText(output);
                 editBox:SetFocus();
                 editBox:HighlightText();
@@ -322,7 +327,17 @@ function QuestieSlash.HandleCommands(input)
             hideOnEscape = true
         }
 
-        StaticPopup_Show("QUESTIE_ITEMDROPOUTPUT") -- display a popup with a copyable text field so we can get the list out of the game
+        Popup.Show("QUESTIE_ITEMDROPOUTPUT") -- display a popup with a copyable text field so we can get the list out of the game
+        return
+    end
+
+    if mainCommand == "oldoptions" then -- temporary dev command only. opens the old settings popup rather than the new Native one (/questie)
+        QuestieOptions:ToggleConfigWindow()
+        return
+    end
+
+    if mainCommand == "refresh" then
+        QuestieOptionsEngine:RefreshStates()
         return
     end
 

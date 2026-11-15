@@ -1,3 +1,6 @@
+---@type QuestieCompat
+local QuestieCompat = QuestieLoader:ImportModule("QuestieCompat")
+
 ---@class QuestieSearchResults
 local QuestieSearchResults = QuestieLoader:CreateModule("QuestieSearchResults")
 -------------------------
@@ -38,13 +41,13 @@ if Questie.IsHardcore then
     TICKS_PER_YIELD = 15
 end
 
-local GetItemInfo = C_Item.GetItemInfo or GetItemInfo
+local GetItemInfo = QuestieCompat.GetItemInfo
 local stringrep = string.rep
 local stringsub = string.sub
 
 local AceGUI = LibStub("AceGUI-3.0");
 
-local _HandleTreeItemClick, _FindFirstSpawn
+local _HandleTreeItemSelected, _FindFirstSpawn
 local lastOpenSearch = "quest"
 local _selected = 0
 
@@ -618,7 +621,13 @@ function QuestieSearchResults:DrawResultTab(container, resultType)
     resultTree:SetFullHeight(true);
     resultTree.treeframe:SetWidth(415);
     resultTree:SetTree(results);
-    resultTree:SetCallback("OnClick", _HandleTreeItemClick)
+    -- Programmatic selection fires OnGroupSelected, not OnClick.
+    resultTree:SetCallback("OnGroupSelected", _HandleTreeItemSelected)
+    resultTree:SetCallback("OnClick", function(_, _, selectedId)
+        if IsShiftKeyDown() and lastOpenSearch == "quest" then
+            ChatEdit_InsertLink(QuestieLink.GetQuestLinkStringById(tonumber(selectedId)))
+        end
+    end)
 
     resultFrame:AddChild(resultTree)
     container:AddChild(resultFrame);
@@ -628,14 +637,9 @@ function QuestieSearchResults:DrawResultTab(container, resultType)
     end
 end
 
-_HandleTreeItemClick = function(group, ...)
-    local treePath = {...}
-
+_HandleTreeItemSelected = function(group, _, value)
     -- This is either the questId, npcId, objectId or itemId
-    local selectedId = tonumber(treePath[2])
-    if IsShiftKeyDown() and lastOpenSearch == "quest" then
-        ChatEdit_InsertLink(QuestieLink.GetQuestLinkStringById(selectedId))
-    end
+    local selectedId = tonumber(value)
 
     -- get master frame and create scroll frame inside
     local master = group.frame.obj;
