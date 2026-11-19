@@ -1,6 +1,0 @@
----@meta _
----@class AddonMessageParams
----@field prefix string
----@field message string
----@field chatType string?
----@field target string?

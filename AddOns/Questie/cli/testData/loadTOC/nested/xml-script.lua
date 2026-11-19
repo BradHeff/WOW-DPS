@@ -1,3 +1,0 @@
-local _, addonTable = ...
-assert(addonTable.loadTOCTestMarker == "shared addon table")
-table.insert(LOAD_TOC_TEST_ORDER, "XML Lua file")
